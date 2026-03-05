@@ -82,25 +82,79 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get comments for ticket {ticket_id}: {str(e)}")
 
+    # Allowed image MIME types. SVG is excluded — it can contain active XML/JS content.
+    _ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+
+    # Magic bytes (file signatures) for each allowed type.
+    _MAGIC_BYTES: Dict[str, List[bytes]] = {
+        'image/jpeg': [b'\xff\xd8\xff'],
+        'image/png':  [b'\x89PNG\r\n\x1a\n'],
+        'image/gif':  [b'GIF87a', b'GIF89a'],
+        'image/webp': [b'RIFF'],  # RIFF....WEBP — checked further below
+    }
+
+    # 10 MB hard cap to guard against image bombs and token budget blowout.
+    _MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
     def get_ticket_attachment(self, content_url: str) -> Dict[str, Any]:
         """
-        Fetch an attachment by its content_url and return base64-encoded data.
+        Fetch an image attachment and return base64-encoded data.
+
+        Security measures applied:
+        - Allowlist of safe image MIME types (no SVG or arbitrary binary).
+        - Magic byte validation so the file header must match the declared type.
+        - 10 MB size cap to prevent image bombs and excessive token usage.
 
         Zendesk attachment URLs redirect to zdusercontent.com (Zendesk's CDN).
         requests strips the Authorization header on cross-origin redirects,
         which is required — the CDN returns 403 if it receives an auth header.
         """
         try:
-            # urllib was returning 403 forbidden
             response = _requests.get(
                 content_url,
                 headers={'Authorization': self.auth_header},
                 timeout=30,
+                stream=True,
             )
             response.raise_for_status()
-            data = base64.b64encode(response.content).decode('ascii')
-            content_type = response.headers.get('Content-Type', 'application/octet-stream').split(';')[0].strip()
-            return {'data': data, 'content_type': content_type}
+
+            content_type = response.headers.get('Content-Type', '').split(';')[0].strip().lower()
+
+            if content_type not in self._ALLOWED_IMAGE_TYPES:
+                raise ValueError(
+                    f"Attachment type '{content_type}' is not allowed. "
+                    f"Supported types: {sorted(self._ALLOWED_IMAGE_TYPES)}"
+                )
+
+            # Read with size cap — stops download as soon as limit is exceeded.
+            chunks = []
+            total = 0
+            for chunk in response.iter_content(chunk_size=65536):
+                total += len(chunk)
+                if total > self._MAX_ATTACHMENT_BYTES:
+                    raise ValueError(
+                        f"Attachment exceeds the {self._MAX_ATTACHMENT_BYTES // (1024*1024)} MB size limit."
+                    )
+                chunks.append(chunk)
+            content = b''.join(chunks)
+
+            # Validate magic bytes to catch MIME type spoofing.
+            magic_signatures = self._MAGIC_BYTES.get(content_type, [])
+            if magic_signatures and not any(content.startswith(sig) for sig in magic_signatures):
+                raise ValueError(
+                    f"File header does not match declared content type '{content_type}'. "
+                    "The attachment may be spoofed."
+                )
+            # Extra check for WebP: bytes 8–12 must be b'WEBP'.
+            if content_type == 'image/webp' and content[8:12] != b'WEBP':
+                raise ValueError("File header does not match declared content type 'image/webp'.")
+
+            return {
+                'data': base64.b64encode(content).decode('ascii'),
+                'content_type': content_type,
+            }
+        except (ValueError, _requests.HTTPError):
+            raise
         except Exception as e:
             raise Exception(f"Failed to fetch attachment from {content_url}: {str(e)}")
 
