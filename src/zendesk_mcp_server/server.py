@@ -254,7 +254,9 @@ async def handle_list_tools() -> list[types.Tool]:
                     "requester_id": {"type": "integer"},
                     "tags": {"type": "array", "items": {"type": "string"}},
                     "custom_fields": {"type": "array", "items": {"type": "object"}},
-                    "due_at": {"type": "string", "description": "ISO8601 datetime"}
+                    "due_at": {"type": "string", "description": "ISO8601 datetime"},
+                    "custom_status_id": {"type": "integer", "description": "Custom ticket status ID (e.g. Feature Request Created, On-Hold/Engineering)"},
+                    "group_id": {"type": "integer", "description": "Zendesk group ID to assign the ticket to"}
                 },
                 "required": ["ticket_id"]
             }
