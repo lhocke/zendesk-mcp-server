@@ -334,6 +334,101 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to create ticket: {str(e)}")
 
+    def search_tickets(self, query: str, sort_by: str = 'created_at', sort_order: str = 'asc', per_page: int = 10) -> Dict[str, Any]:
+        try:
+            per_page = min(per_page, 100)
+            params = {'query': query, 'sort_by': sort_by, 'sort_order': sort_order, 'per_page': str(per_page)}
+            url = f"{self.base_url}/search.json?{urllib.parse.urlencode(params)}"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            ticket_list = [
+                {
+                    'id': t.get('id'),
+                    'subject': t.get('subject'),
+                    'status': t.get('status'),
+                    'priority': t.get('priority'),
+                    'created_at': t.get('created_at'),
+                    'updated_at': t.get('updated_at'),
+                    'assignee_id': t.get('assignee_id'),
+                    'organization_id': t.get('organization_id'),
+                }
+                for t in data.get('results', [])
+                if t.get('result_type') == 'ticket'
+            ]
+            return {
+                'tickets': ticket_list,
+                'count': len(ticket_list),
+                'total_count': data.get('count', len(ticket_list)),
+                'has_more': data.get('next_page') is not None,
+            }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to search tickets: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to search tickets: {str(e)}")
+
+    def get_organization(self, organization_id: int) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/organizations/{organization_id}.json"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            org = data.get('organization', {})
+            return {
+                'id': org.get('id'),
+                'name': org.get('name'),
+                'organization_fields': org.get('organization_fields', {}),
+                'tags': org.get('tags', []),
+                'created_at': org.get('created_at'),
+                'updated_at': org.get('updated_at'),
+            }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to get organization {organization_id}: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to get organization {organization_id}: {str(e)}")
+
+    def search_users(self, query: str) -> List[Dict[str, Any]]:
+        try:
+            url = f"{self.base_url}/users/search.json?{urllib.parse.urlencode({'query': query})}"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            return [
+                {'id': u.get('id'), 'name': u.get('name'), 'email': u.get('email'), 'role': u.get('role')}
+                for u in data.get('users', [])
+            ]
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to search users: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to search users: {str(e)}")
+
+    def get_group_users(self, group_id: int) -> List[Dict[str, Any]]:
+        try:
+            url = f"{self.base_url}/groups/{group_id}/users.json"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            return [
+                {'id': u.get('id'), 'name': u.get('name'), 'email': u.get('email')}
+                for u in data.get('users', [])
+            ]
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to get users for group {group_id}: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to get users for group {group_id}: {str(e)}")
+
     def update_ticket(self, ticket_id: int, **fields: Any) -> Dict[str, Any]:
         """
         Update a Zendesk ticket with provided fields using Zenpy.
