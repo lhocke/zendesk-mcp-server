@@ -240,6 +240,53 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="search_tickets",
+            description="Search Zendesk tickets using a query string (supports assignee, status, priority, org, date filters)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Zendesk search query, e.g. 'type:ticket status:open assignee:me'"},
+                    "sort_by": {"type": "string", "description": "Field to sort by (created_at, updated_at, priority, status)", "default": "created_at"},
+                    "sort_order": {"type": "string", "description": "asc or desc", "default": "asc"},
+                    "per_page": {"type": "integer", "description": "Results per page (max 100)", "default": 10}
+                },
+                "required": ["query"]
+            }
+        ),
+        types.Tool(
+            name="get_organization",
+            description="Retrieve a Zendesk organization by ID, including custom fields",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "organization_id": {"type": "integer", "description": "The ID of the organization to retrieve"}
+                },
+                "required": ["organization_id"]
+            }
+        ),
+        types.Tool(
+            name="search_users",
+            description="Search for Zendesk users by name or email",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Name or email to search for"}
+                },
+                "required": ["query"]
+            }
+        ),
+        types.Tool(
+            name="get_group_users",
+            description="List all users in a Zendesk group",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "group_id": {"type": "integer", "description": "The ID of the group"}
+                },
+                "required": ["group_id"]
+            }
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -355,6 +402,35 @@ async def handle_call_tool(
                     type="text",
                     text=json.dumps({"content_type": content_type, "data_base64": result["data"]})
                 )]
+
+        elif name == "search_tickets":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            results = zendesk_client.search_tickets(
+                query=arguments["query"],
+                sort_by=arguments.get("sort_by", "created_at"),
+                sort_order=arguments.get("sort_order", "asc"),
+                per_page=arguments.get("per_page", 10)
+            )
+            return [types.TextContent(type="text", text=json.dumps(results, indent=2))]
+
+        elif name == "get_organization":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            org = zendesk_client.get_organization(arguments["organization_id"])
+            return [types.TextContent(type="text", text=json.dumps(org, indent=2))]
+
+        elif name == "search_users":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            users = zendesk_client.search_users(arguments["query"])
+            return [types.TextContent(type="text", text=json.dumps(users, indent=2))]
+
+        elif name == "get_group_users":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            users = zendesk_client.get_group_users(arguments["group_id"])
+            return [types.TextContent(type="text", text=json.dumps(users, indent=2))]
 
         elif name == "update_ticket":
             if not arguments:
