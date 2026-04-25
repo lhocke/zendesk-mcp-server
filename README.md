@@ -15,50 +15,117 @@ This server provides a comprehensive integration with Zendesk. It offers:
 
 ## Setup
 
-- build: `uv venv && uv pip install -e .` or `uv build` in short.
-- setup zendesk credentials in `.env` file, refer to [.env.example](.env.example).
-- configure in Claude desktop:
+Build the project first:
 
-```json
-{
-  "mcpServers": {
-      "zendesk": {
-          "command": "uv",
-          "args": [
-              "--directory",
-              "/path/to/zendesk-mcp-server",
-              "run",
-              "zendesk"
-          ]
-      }
-  }
-}
+```bash
+uv venv && uv pip install -e .
 ```
+
+The server supports two authentication modes. OAuth is preferred — it ties comments to your individual Zendesk identity so customers see the correct agent name. API token auth is available as a simpler fallback.
+
+### OAuth (recommended)
+
+OAuth requires a one-time admin step to register an OAuth client, then a one-time per-user browser authorization.
+
+**Admin setup (once per team):**
+
+1. In Zendesk Admin Center, go to **Apps and Integrations → APIs → OAuth Clients**.
+2. Click **Add OAuth client**. Set the redirect URI to `http://localhost:8085/callback`. Note the `client_id` and `client_secret`.
+3. Distribute `ZENDESK_CLIENT_ID`, `ZENDESK_CLIENT_SECRET`, and `ZENDESK_SUBDOMAIN` to your team (e.g. via a shared `.env.example`).
+
+**Per-user setup:**
+
+1. Copy `.env.example` to `.env` and fill in `ZENDESK_CLIENT_ID`, `ZENDESK_CLIENT_SECRET`, and `ZENDESK_SUBDOMAIN`.
+2. Run the auth command:
+
+   ```bash
+   uv run zendesk-auth
+   ```
+
+   This opens a browser window to authorize the OAuth client. After authorizing, your token is saved to `~/.zendesk_mcp/{subdomain}.json`. You will not need to repeat this step unless the token expires (refresh tokens last up to 90 days).
+
+3. Verify authentication succeeded:
+
+   ```bash
+   uv run zendesk-auth --check
+   ```
+
+4. Configure Claude Desktop or Claude Code:
+
+   ```json
+   {
+     "mcpServers": {
+       "zendesk": {
+         "command": "uv",
+         "args": [
+           "--directory",
+           "/path/to/zendesk-mcp-server",
+           "run",
+           "zendesk"
+         ]
+       }
+     }
+   }
+   ```
+
+### API Token (fallback)
+
+Use this if your team does not have an OAuth client registered, or for automated/service accounts that only post internal notes.
+
+1. A Zendesk admin must generate an API token in **Admin Center → Apps and Integrations → APIs → API Tokens**.
+2. Copy `.env.example` to `.env` and fill in `ZENDESK_SUBDOMAIN`, `ZENDESK_EMAIL` (your own email address), and `ZENDESK_API_KEY`.
+3. Configure Claude Desktop or Claude Code as above.
+
+**Note:** Attribution for public comments depends on `ZENDESK_EMAIL` being set to your own email. Do not share a configured instance with other users — each person should run their own with their own email.
 
 ### Docker
 
 You can containerize the server if you prefer an isolated runtime:
 
-1. Copy `.env.example` to `.env` and fill in your Zendesk credentials. Keep this file outside version control.
-2. Build the image:
+1. Build the image:
 
    ```bash
    docker build -t zendesk-mcp-server .
    ```
 
-3. Run the server, providing the environment file:
+2. Create a `.env` file with your credentials (see `.env.example`). Keep this file outside version control.
+
+3. Run the server:
 
    ```bash
-   docker run --rm --env-file /path/to/.env zendesk-mcp-server
+   docker run --rm -i --env-file /path/to/.env zendesk-mcp-server
    ```
 
-   Add `-i` when wiring the container to MCP clients over STDIN/STDOUT (Claude Code uses this mode). For daemonized runs, add `-d --name zendesk-mcp`.
+   For daemonized runs, add `-d --name zendesk-mcp`.
 
 The image installs dependencies from `requirements.lock`, drops privileges to a non-root user, and expects configuration exclusively via environment variables.
 
+#### Docker with OAuth
+
+The OAuth browser flow cannot run inside a Docker container. Run `zendesk-auth` on your host machine first, then mount the token file into the container:
+
+```bash
+# Step 1: authenticate on the host (one-time, or when token expires)
+uv run zendesk-auth
+
+# Step 2: run the container with the token file mounted
+docker run --rm -i \
+  --env-file /path/to/.env \
+  -v ~/.zendesk_mcp:/home/zendesk/.zendesk_mcp \
+  zendesk-mcp-server
+```
+
+The server will silently refresh the access token as needed and write the updated token back to the mounted file. Ensure the mount is read-write (the default) so refreshed tokens are persisted across container restarts.
+
+If you are in a headless environment without a browser, use `--no-browser` to print the authorization URL instead of opening it:
+
+```bash
+uv run zendesk-auth --no-browser
+```
+
 #### Claude MCP Integration
 
-To use the Dockerized server from Claude Code/Desktop, add an entry to Claude Code's `settings.json` similar to:
+To use the Dockerized server from Claude Code/Desktop, add an entry to Claude Code's `settings.json`. For OAuth, include the token file mount:
 
 ```json
 {
@@ -71,12 +138,16 @@ To use the Dockerized server from Claude Code/Desktop, add an entry to Claude Co
         "-i",
         "--env-file",
         "/path/to/zendesk-mcp-server/.env",
+        "-v",
+        "/Users/yourname/.zendesk_mcp:/home/zendesk/.zendesk_mcp",
         "zendesk-mcp-server"
       ]
     }
   }
 }
 ```
+
+For API token auth, omit the `-v` lines.
 
 Adjust the paths to match your environment. After saving the file, restart Claude for the new MCP server to be detected.
 
@@ -246,3 +317,13 @@ Fetch a Zendesk ticket attachment by its content URL and return the file as base
   - `content_url` (string): The `content_url` of the attachment from `get_ticket_comments`
 
 - Output: Returns base64-encoded file data and content type. Images are returned as image content; other file types as JSON with a `data_base64` field. Supports JPEG, PNG, GIF, and WebP only (max 10 MB).
+
+## Limitations
+
+### Comment Attribution (API token mode only)
+
+When using API token auth, public comments are attributed to whichever email address is set in `ZENDESK_EMAIL`. Zendesk API tokens are account-level — any token can be paired with any account member's email — so attribution is determined entirely by how the server is configured, not by the token itself.
+
+**Do not share a single configured instance across multiple people.** Each user should run their own instance with their own email, otherwise all public replies appear to come from the same person.
+
+OAuth mode does not have this limitation — tokens are tied to the authorizing user's Zendesk identity at the platform level.
