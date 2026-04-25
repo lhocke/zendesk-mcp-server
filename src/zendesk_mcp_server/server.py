@@ -287,6 +287,15 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="get_groups",
+            description="List all active Zendesk groups (support teams)",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -431,6 +440,10 @@ async def handle_call_tool(
                 raise ValueError("Missing arguments")
             users = zendesk_client.get_group_users(arguments["group_id"])
             return [types.TextContent(type="text", text=json.dumps(users, indent=2))]
+
+        elif name == "get_groups":
+            groups = zendesk_client.get_groups()
+            return [types.TextContent(type="text", text=json.dumps(groups, indent=2))]
 
         elif name == "update_ticket":
             if not arguments:
