@@ -128,8 +128,10 @@ Create a new comment on an existing Zendesk ticket
 
 - Input:
   - `ticket_id` (integer): The ID of the ticket to comment on
-  - `comment` (string): The comment text/content to add
+  - `comment` (string): The comment content as HTML (not plain text or markdown). Use HTML tags like `<p>`, `<strong>`, `<code>`, `<ol>`, `<li>` for formatting.
   - `public` (boolean, optional): Whether the comment should be public (defaults to true)
+
+**Note:** Comments are sent as `html_body` to Zendesk. Plain text without HTML tags will render as a single unformatted block.
 
 ### create_ticket
 
@@ -155,7 +157,7 @@ Update fields on an existing Zendesk ticket (e.g., status, priority, assignee)
   - `status` (string, optional): one of `new`, `open`, `pending`, `on-hold`, `solved`, `closed`
   - `priority` (string, optional): one of `low`, `normal`, `high`, `urgent`
   - `type` (string, optional)
-  - `assignee_id` (integer, optional)
+  - `assignee_id` (integer or null, optional): Assignee ID, or pass `null` to unassign the ticket
   - `requester_id` (integer, optional)
   - `tags` (array[string], optional)
   - `custom_fields` (array[object], optional)
@@ -201,6 +203,22 @@ List all users in a Zendesk group.
   - `group_id` (integer): The ID of the group
 
 - Output: Returns a list of group members with id, name, and email.
+
+### get_groups
+
+List all active Zendesk groups (support teams).
+
+- Input: None
+
+- Output: Returns a list of groups with id and name.
+
+### list_custom_statuses
+
+List all custom ticket statuses defined in Zendesk, including their IDs and status categories.
+
+- Input: None
+
+- Output: Returns a list of custom statuses with id, agent_label, end_user_label, status_category, active, and default flag.
 
 ### get_ticket_attachment
 
