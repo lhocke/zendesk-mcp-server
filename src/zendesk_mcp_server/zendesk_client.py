@@ -448,6 +448,34 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get groups: {str(e)}")
 
+    def list_custom_statuses(self) -> List[Dict[str, Any]]:
+        """
+        List all custom ticket statuses defined in Zendesk.
+        """
+        try:
+            url = f"{self.base_url}/custom_statuses"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            return [
+                {
+                    'id': s.get('id'),
+                    'agent_label': s.get('agent_label'),
+                    'end_user_label': s.get('end_user_label'),
+                    'status_category': s.get('status_category'),
+                    'active': s.get('active'),
+                    'default': s.get('default'),
+                }
+                for s in data.get('custom_statuses', [])
+            ]
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to list custom statuses: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to list custom statuses: {str(e)}")
+
     def update_ticket(self, ticket_id: int, **fields: Any) -> Dict[str, Any]:
         """
         Update a Zendesk ticket with provided fields using Zenpy.
@@ -455,13 +483,12 @@ class ZendeskClient:
         Supported fields include common ticket attributes like:
         subject, status, priority, type, assignee_id, requester_id,
         tags (list[str]), custom_fields (list[dict]), due_at, etc.
+        Pass assignee_id=null to unassign the ticket.
         """
         try:
             # Load the ticket, mutate fields directly, and update
             ticket = self.client.tickets(id=ticket_id)
             for key, value in fields.items():
-                if value is None:
-                    continue
                 setattr(ticket, key, value)
 
             # This call returns a TicketAudit (not a Ticket). Don't read attrs from it.

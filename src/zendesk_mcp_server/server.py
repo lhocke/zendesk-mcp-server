@@ -296,6 +296,15 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="list_custom_statuses",
+            description="List all custom ticket statuses defined in Zendesk, including their IDs and status categories (new, open, pending, hold, solved)",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -306,7 +315,7 @@ async def handle_list_tools() -> list[types.Tool]:
                     "status": {"type": "string", "description": "new, open, pending, on-hold, solved, closed"},
                     "priority": {"type": "string", "description": "low, normal, high, urgent"},
                     "type": {"type": "string"},
-                    "assignee_id": {"type": "integer"},
+                    "assignee_id": {"type": ["integer", "null"], "description": "Assignee ID or null to unassign"},
                     "requester_id": {"type": "integer"},
                     "tags": {"type": "array", "items": {"type": "string"}},
                     "custom_fields": {"type": "array", "items": {"type": "object"}},
@@ -444,6 +453,10 @@ async def handle_call_tool(
         elif name == "get_groups":
             groups = zendesk_client.get_groups()
             return [types.TextContent(type="text", text=json.dumps(groups, indent=2))]
+
+        elif name == "list_custom_statuses":
+            statuses = zendesk_client.list_custom_statuses()
+            return [types.TextContent(type="text", text=json.dumps(statuses, indent=2))]
 
         elif name == "update_ticket":
             if not arguments:
