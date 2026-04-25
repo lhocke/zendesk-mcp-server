@@ -160,3 +160,53 @@ Update fields on an existing Zendesk ticket (e.g., status, priority, assignee)
   - `tags` (array[string], optional)
   - `custom_fields` (array[object], optional)
   - `due_at` (string, optional): ISO8601 datetime
+  - `custom_status_id` (integer, optional): Custom ticket status ID (for non-standard statuses beyond the built-in `status` enum)
+  - `group_id` (integer, optional): Zendesk group ID to assign the ticket to
+
+### search_tickets
+
+Search Zendesk tickets using a query string with support for filtering by assignee, status, priority, organization, and date.
+
+- Input:
+  - `query` (string): Zendesk search query, e.g. `type:ticket status:open assignee:me`
+  - `sort_by` (string, optional): Field to sort by — `created_at`, `updated_at`, `priority`, or `status` (defaults to `created_at`)
+  - `sort_order` (string, optional): `asc` or `desc` (defaults to `asc`)
+  - `per_page` (integer, optional): Results per page, max 100 (defaults to 10)
+
+- Output: Returns matching tickets with id, subject, status, priority, timestamps, assignee_id, and organization_id, along with total count and pagination info.
+
+### get_organization
+
+Retrieve a Zendesk organization by ID, including custom fields.
+
+- Input:
+  - `organization_id` (integer): The ID of the organization to retrieve
+
+- Output: Returns id, name, organization_fields (full dict of custom fields), tags, and timestamps.
+
+### search_users
+
+Search for Zendesk users by name or email.
+
+- Input:
+  - `query` (string): Name or email to search for
+
+- Output: Returns a list of matching users with id, name, and email.
+
+### get_group_users
+
+List all users in a Zendesk group.
+
+- Input:
+  - `group_id` (integer): The ID of the group
+
+- Output: Returns a list of group members with id, name, and email.
+
+### get_ticket_attachment
+
+Fetch a Zendesk ticket attachment by its content URL and return the file as base64-encoded data.
+
+- Input:
+  - `content_url` (string): The `content_url` of the attachment from `get_ticket_comments`
+
+- Output: Returns base64-encoded file data and content type. Images are returned as image content; other file types as JSON with a `data_base64` field. Supports JPEG, PNG, GIF, and WebP only (max 10 MB).
