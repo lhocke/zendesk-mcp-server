@@ -333,6 +333,113 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="list_ticket_fields",
+            description="List all active Zendesk ticket fields, including custom fields with their IDs and types",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="list_macros",
+            description="List all active Zendesk macros with their actions, for use with apply_macro",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="preview_macro",
+            description="Return the field changes and comment a macro would make, without applying anything. Useful for understanding what a macro does before calling apply_macro.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "macro_id": {"type": "integer", "description": "The ID of the macro to preview (obtain via list_macros)"},
+                },
+                "required": ["macro_id"]
+            }
+        ),
+        types.Tool(
+            name="apply_macro",
+            description="Apply a macro to a Zendesk ticket — updates ticket fields and posts any comment the macro defines",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The ticket to apply the macro to"},
+                    "macro_id": {"type": "integer", "description": "The ID of the macro to apply (obtain via list_macros)"},
+                },
+                "required": ["ticket_id", "macro_id"]
+            }
+        ),
+        types.Tool(
+            name="list_views",
+            description="List all active Zendesk views (saved ticket queues) with their IDs and titles",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="get_view",
+            description="Return the full definition of a Zendesk view including its filter conditions, for understanding what a view captures without executing it",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "The ID of the view (obtain via list_views)"},
+                },
+                "required": ["view_id"]
+            }
+        ),
+        types.Tool(
+            name="get_view_tickets",
+            description="Return the tickets in a Zendesk view",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "The ID of the view (obtain via list_views)"},
+                },
+                "required": ["view_id"]
+            }
+        ),
+        types.Tool(
+            name="add_tag",
+            description="Add a single tag to a Zendesk ticket without overwriting existing tags",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The ID of the ticket"},
+                    "tag": {"type": "string", "description": "The tag to add"},
+                },
+                "required": ["ticket_id", "tag"]
+            }
+        ),
+        types.Tool(
+            name="remove_tag",
+            description="Remove a single tag from a Zendesk ticket without affecting other tags",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The ID of the ticket"},
+                    "tag": {"type": "string", "description": "The tag to remove"},
+                },
+                "required": ["ticket_id", "tag"]
+            }
+        ),
+        types.Tool(
+            name="create_jira_link",
+            description="Link a Zendesk ticket to a Jira issue",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The Zendesk ticket ID"},
+                    "issue_key": {"type": "string", "description": "The Jira issue key, e.g. ENG-123"},
+                },
+                "required": ["ticket_id", "issue_key"]
+            }
+        ),
+        types.Tool(
+            name="delete_jira_link",
+            description="Remove a Zendesk–Jira link by its link ID (obtain via get_jira_links)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "link_id": {"type": "integer", "description": "The ID of the Jira link to delete"},
+                },
+                "required": ["link_id"]
+            }
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -497,6 +604,66 @@ async def handle_call_tool(
                 raise ValueError("Missing arguments")
             links = zendesk_client.get_zendesk_tickets_for_jira_issue(str(arguments["issue_id"]))
             return [types.TextContent(type="text", text=json.dumps(links, indent=2))]
+
+        elif name == "list_ticket_fields":
+            fields = zendesk_client.list_ticket_fields()
+            return [types.TextContent(type="text", text=json.dumps(fields, indent=2))]
+
+        elif name == "list_macros":
+            macros = zendesk_client.list_macros()
+            return [types.TextContent(type="text", text=json.dumps(macros, indent=2))]
+
+        elif name == "preview_macro":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            result = zendesk_client.preview_macro(int(arguments["macro_id"]))
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "apply_macro":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            result = zendesk_client.apply_macro(int(arguments["ticket_id"]), int(arguments["macro_id"]))
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "list_views":
+            views = zendesk_client.list_views()
+            return [types.TextContent(type="text", text=json.dumps(views, indent=2))]
+
+        elif name == "get_view":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            view = zendesk_client.get_view(int(arguments["view_id"]))
+            return [types.TextContent(type="text", text=json.dumps(view, indent=2))]
+
+        elif name == "get_view_tickets":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            tickets = zendesk_client.get_view_tickets(int(arguments["view_id"]))
+            return [types.TextContent(type="text", text=json.dumps(tickets, indent=2))]
+
+        elif name == "add_tag":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            tags = zendesk_client.add_tag(int(arguments["ticket_id"]), str(arguments["tag"]))
+            return [types.TextContent(type="text", text=json.dumps({"tags": tags}, indent=2))]
+
+        elif name == "remove_tag":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            tags = zendesk_client.remove_tag(int(arguments["ticket_id"]), str(arguments["tag"]))
+            return [types.TextContent(type="text", text=json.dumps({"tags": tags}, indent=2))]
+
+        elif name == "create_jira_link":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            link = zendesk_client.create_jira_link(int(arguments["ticket_id"]), str(arguments["issue_key"]))
+            return [types.TextContent(type="text", text=json.dumps(link, indent=2))]
+
+        elif name == "delete_jira_link":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            zendesk_client.delete_jira_link(int(arguments["link_id"]))
+            return [types.TextContent(type="text", text=json.dumps({"message": f"Jira link {arguments['link_id']} deleted"}))]
 
         elif name == "update_ticket":
             if not arguments:
