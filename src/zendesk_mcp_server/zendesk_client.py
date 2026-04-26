@@ -10,28 +10,65 @@ from zenpy.lib.api_objects import Comment
 from zenpy.lib.api_objects import Link
 from zenpy.lib.api_objects import Ticket as ZenpyTicket
 
+from zendesk_mcp_server.oauth import OAuthTokenManager, retry_on_401
+
 
 class ZendeskClient:
-    def __init__(self, subdomain: str, email: str, token: str):
-        """
-        Initialize the Zendesk client using zenpy lib and direct API.
-        """
-        self.client = Zenpy(
-            subdomain=subdomain,
-            email=email,
-            token=token
+    """Zendesk API client supporting two auth modes (API token and OAuth).
+
+    Construct via the factory classmethods only. Direct __init__ raises TypeError.
+
+    Methods carrying a non-idempotent side effect are NOT decorated with
+    @retry_on_401 — a retry would replay the side effect:
+      - post_comment       (duplicate comment)
+      - apply_macro        (replays macro actions: comments, tag changes, etc.)
+      - create_jira_link   (duplicate link)
+    """
+
+    def __init__(self, *args, **kwargs):
+        raise TypeError(
+            "ZendeskClient must be constructed via ZendeskClient.from_api_token(...) "
+            "or ZendeskClient.from_oauth(...). Direct construction is not supported."
         )
 
-        # For direct API calls
-        self.subdomain = subdomain
-        self.email = email
-        self.token = token
-        self.base_url = f"https://{subdomain}.zendesk.com/api/v2"
-        # Create basic auth header
-        credentials = f"{email}/token:{token}"
-        encoded_credentials = base64.b64encode(credentials.encode()).decode('ascii')
-        self.auth_header = f"Basic {encoded_credentials}"
+    @classmethod
+    def from_api_token(cls, subdomain: str, email: str, token: str) -> "ZendeskClient":
+        inst = cls.__new__(cls)
+        inst._email = email
+        inst._api_token = token
+        inst._token_manager = None
+        inst.client = Zenpy(subdomain=subdomain, email=email, token=token)
+        inst.subdomain = subdomain
+        inst.base_url = f"https://{subdomain}.zendesk.com/api/v2"
+        return inst
 
+    @classmethod
+    def from_oauth(cls, subdomain: str, token_manager: OAuthTokenManager) -> "ZendeskClient":
+        inst = cls.__new__(cls)
+        inst._email = None
+        inst._api_token = None
+        inst._token_manager = token_manager
+        initial_token = token_manager.get_valid_token()
+        inst.client = Zenpy(subdomain=subdomain, oauth_token=initial_token)
+        inst.subdomain = subdomain
+        inst.base_url = f"https://{subdomain}.zendesk.com/api/v2"
+        token_manager.register_post_refresh_hook(inst._on_token_refreshed)
+        return inst
+
+    @property
+    def auth_header(self) -> str:
+        if self._token_manager is None:
+            credentials = f"{self._email}/token:{self._api_token}"
+            return f"Basic {base64.b64encode(credentials.encode()).decode('ascii')}"
+        return f"Bearer {self._token_manager.get_valid_token()}"
+
+    def _on_token_refreshed(self, new_access_token: str) -> None:
+        # Per spike S2: zenpy stores its requests.Session on each API helper's
+        # .session attribute, and all helpers share the same instance. Updating
+        # one propagates everywhere. Pinned via zenpy==2.0.56 in pyproject.toml.
+        self.client.tickets.session.headers["Authorization"] = f"Bearer {new_access_token}"
+
+    @retry_on_401
     def get_ticket(self, ticket_id: int) -> Dict[str, Any]:
         """
         Query a ticket by its ID
@@ -54,6 +91,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get ticket {ticket_id}: {str(e)}")
 
+    @retry_on_401
     def get_ticket_comments(self, ticket_id: int) -> List[Dict[str, Any]]:
         """
         Get all comments for a specific ticket, including attachment metadata.
@@ -98,6 +136,7 @@ class ZendeskClient:
     # 10 MB hard cap to guard against image bombs and token budget blowout.
     _MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
+    @retry_on_401
     def get_ticket_attachment(self, content_url: str) -> Dict[str, Any]:
         """
         Fetch an image attachment and return base64-encoded data.
@@ -160,6 +199,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to fetch attachment from {content_url}: {str(e)}")
 
+    # NOT decorated with @retry_on_401 — a retry would post a duplicate comment.
     def post_comment(self, ticket_id: int, comment: str, public: bool = True) -> str:
         """
         Post a comment to an existing ticket.
@@ -175,6 +215,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to post comment on ticket {ticket_id}: {str(e)}")
 
+    @retry_on_401
     def get_tickets(self, page: int = 1, per_page: int = 25, sort_by: str = 'created_at', sort_order: str = 'desc') -> Dict[str, Any]:
         """
         Get the latest tickets with proper pagination support using direct API calls.
@@ -245,6 +286,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get latest tickets: {str(e)}")
 
+    @retry_on_401
     def get_all_articles(self) -> Dict[str, Any]:
         """
         Fetch help center articles as knowledge base.
@@ -274,6 +316,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to fetch knowledge base: {str(e)}")
 
+    @retry_on_401
     def create_ticket(
         self,
         subject: str,
@@ -336,6 +379,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to create ticket: {str(e)}")
 
+    @retry_on_401
     def search_tickets(self, query: str, sort_by: str = 'created_at', sort_order: str = 'asc', per_page: int = 10) -> Dict[str, Any]:
         try:
             per_page = min(per_page, 100)
@@ -372,6 +416,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to search tickets: {str(e)}")
 
+    @retry_on_401
     def get_organization(self, organization_id: int) -> Dict[str, Any]:
         try:
             url = f"{self.base_url}/organizations/{organization_id}.json"
@@ -395,6 +440,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get organization {organization_id}: {str(e)}")
 
+    @retry_on_401
     def search_users(self, query: str) -> List[Dict[str, Any]]:
         try:
             url = f"{self.base_url}/users/search.json?{urllib.parse.urlencode({'query': query})}"
@@ -413,6 +459,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to search users: {str(e)}")
 
+    @retry_on_401
     def get_group_users(self, group_id: int) -> List[Dict[str, Any]]:
         try:
             url = f"{self.base_url}/groups/{group_id}/users.json"
@@ -431,6 +478,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get users for group {group_id}: {str(e)}")
 
+    @retry_on_401
     def get_groups(self) -> List[Dict[str, Any]]:
         try:
             url = f"{self.base_url}/groups.json"
@@ -450,6 +498,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get groups: {str(e)}")
 
+    @retry_on_401
     def list_custom_statuses(self) -> List[Dict[str, Any]]:
         """
         List all custom ticket statuses defined in Zendesk.
@@ -478,6 +527,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to list custom statuses: {str(e)}")
 
+    @retry_on_401
     def get_jira_links(self, ticket_id: int) -> List[Dict[str, Any]]:
         try:
             links = self.client.jira_links(ticket_id=ticket_id)
@@ -496,6 +546,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get Jira links for ticket {ticket_id}: {str(e)}")
 
+    @retry_on_401
     def get_zendesk_tickets_for_jira_issue(self, issue_id: str) -> List[Dict[str, Any]]:
         try:
             links = self.client.jira_links(issue_id=issue_id)
@@ -514,6 +565,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get Zendesk tickets for Jira issue {issue_id}: {str(e)}")
 
+    @retry_on_401
     def list_ticket_fields(self) -> List[Dict[str, Any]]:
         try:
             return [
@@ -531,6 +583,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to list ticket fields: {str(e)}")
 
+    @retry_on_401
     def list_macros(self) -> List[Dict[str, Any]]:
         try:
             result = []
@@ -551,6 +604,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to list macros: {str(e)}")
 
+    @retry_on_401
     def preview_macro(self, macro_id: int) -> Dict[str, Any]:
         try:
             url = f"{self.base_url}/macros/{macro_id}/apply.json"
@@ -566,6 +620,9 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to preview macro {macro_id}: {str(e)}")
 
+    # NOT decorated with @retry_on_401 — macros can have non-idempotent side
+    # effects (post comment, change tags, mutate ticket state). A retry would
+    # replay them.
     def apply_macro(self, ticket_id: int, macro_id: int) -> Dict[str, Any]:
         try:
             url = f"{self.base_url}/tickets/{ticket_id}/macros/{macro_id}/apply.json"
@@ -607,6 +664,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to apply macro {macro_id} to ticket {ticket_id}: {str(e)}")
 
+    @retry_on_401
     def get_view(self, view_id: int) -> Dict[str, Any]:
         try:
             url = f"{self.base_url}/views/{view_id}.json"
@@ -629,6 +687,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get view {view_id}: {str(e)}")
 
+    @retry_on_401
     def list_views(self) -> List[Dict[str, Any]]:
         try:
             return [
@@ -638,6 +697,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to list views: {str(e)}")
 
+    @retry_on_401
     def get_view_tickets(self, view_id: int) -> List[Dict[str, Any]]:
         try:
             return [
@@ -655,6 +715,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get tickets for view {view_id}: {str(e)}")
 
+    @retry_on_401
     def add_tag(self, ticket_id: int, tag: str) -> List[str]:
         try:
             ticket = self.client.tickets(id=ticket_id)
@@ -668,6 +729,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to add tag '{tag}' to ticket {ticket_id}: {str(e)}")
 
+    @retry_on_401
     def remove_tag(self, ticket_id: int, tag: str) -> List[str]:
         try:
             ticket = self.client.tickets(id=ticket_id)
@@ -681,6 +743,7 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to remove tag '{tag}' from ticket {ticket_id}: {str(e)}")
 
+    # NOT decorated with @retry_on_401 — a retry would create a duplicate Jira link.
     def create_jira_link(self, ticket_id: int, issue_key: str) -> Dict[str, Any]:
         try:
             link = self.client.jira_links.create(Link(ticket_id=ticket_id, issue_key=issue_key))
@@ -695,12 +758,14 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to create Jira link for ticket {ticket_id} / {issue_key}: {str(e)}")
 
+    @retry_on_401
     def delete_jira_link(self, link_id: int) -> None:
         try:
             self.client.jira_links.delete(Link(id=link_id))
         except Exception as e:
             raise Exception(f"Failed to delete Jira link {link_id}: {str(e)}")
 
+    @retry_on_401
     def update_ticket(self, ticket_id: int, **fields: Any) -> Dict[str, Any]:
         """
         Update a Zendesk ticket with provided fields using Zenpy.
