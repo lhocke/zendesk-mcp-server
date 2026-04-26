@@ -333,6 +333,53 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="add_tag",
+            description="Add a single tag to a Zendesk ticket without overwriting existing tags",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The ID of the ticket"},
+                    "tag": {"type": "string", "description": "The tag to add"},
+                },
+                "required": ["ticket_id", "tag"]
+            }
+        ),
+        types.Tool(
+            name="remove_tag",
+            description="Remove a single tag from a Zendesk ticket without affecting other tags",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The ID of the ticket"},
+                    "tag": {"type": "string", "description": "The tag to remove"},
+                },
+                "required": ["ticket_id", "tag"]
+            }
+        ),
+        types.Tool(
+            name="create_jira_link",
+            description="Link a Zendesk ticket to a Jira issue",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The Zendesk ticket ID"},
+                    "issue_key": {"type": "string", "description": "The Jira issue key, e.g. ENG-123"},
+                },
+                "required": ["ticket_id", "issue_key"]
+            }
+        ),
+        types.Tool(
+            name="delete_jira_link",
+            description="Remove a Zendesk–Jira link by its link ID (obtain via get_jira_links)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "link_id": {"type": "integer", "description": "The ID of the Jira link to delete"},
+                },
+                "required": ["link_id"]
+            }
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -497,6 +544,30 @@ async def handle_call_tool(
                 raise ValueError("Missing arguments")
             links = zendesk_client.get_zendesk_tickets_for_jira_issue(str(arguments["issue_id"]))
             return [types.TextContent(type="text", text=json.dumps(links, indent=2))]
+
+        elif name == "add_tag":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            tags = zendesk_client.add_tag(int(arguments["ticket_id"]), str(arguments["tag"]))
+            return [types.TextContent(type="text", text=json.dumps({"tags": tags}, indent=2))]
+
+        elif name == "remove_tag":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            tags = zendesk_client.remove_tag(int(arguments["ticket_id"]), str(arguments["tag"]))
+            return [types.TextContent(type="text", text=json.dumps({"tags": tags}, indent=2))]
+
+        elif name == "create_jira_link":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            link = zendesk_client.create_jira_link(int(arguments["ticket_id"]), str(arguments["issue_key"]))
+            return [types.TextContent(type="text", text=json.dumps(link, indent=2))]
+
+        elif name == "delete_jira_link":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            zendesk_client.delete_jira_link(int(arguments["link_id"]))
+            return [types.TextContent(type="text", text=json.dumps({"message": f"Jira link {arguments['link_id']} deleted"}))]
 
         elif name == "update_ticket":
             if not arguments:

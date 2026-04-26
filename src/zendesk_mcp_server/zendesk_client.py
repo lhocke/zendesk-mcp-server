@@ -7,6 +7,7 @@ import requests as _requests
 
 from zenpy import Zenpy
 from zenpy.lib.api_objects import Comment
+from zenpy.lib.api_objects import Link
 from zenpy.lib.api_objects import Ticket as ZenpyTicket
 
 
@@ -47,7 +48,8 @@ class ZendeskClient:
                 'updated_at': str(ticket.updated_at),
                 'requester_id': ticket.requester_id,
                 'assignee_id': ticket.assignee_id,
-                'organization_id': ticket.organization_id
+                'organization_id': ticket.organization_id,
+                'tags': list(getattr(ticket, 'tags', []) or []),
             }
         except Exception as e:
             raise Exception(f"Failed to get ticket {ticket_id}: {str(e)}")
@@ -511,6 +513,52 @@ class ZendeskClient:
             ]
         except Exception as e:
             raise Exception(f"Failed to get Zendesk tickets for Jira issue {issue_id}: {str(e)}")
+
+    def add_tag(self, ticket_id: int, tag: str) -> List[str]:
+        try:
+            ticket = self.client.tickets(id=ticket_id)
+            current = list(getattr(ticket, 'tags', []) or [])
+            if tag not in current:
+                current.append(tag)
+                ticket.tags = current
+                self.client.tickets.update(ticket)
+            refreshed = self.client.tickets(id=ticket_id)
+            return list(getattr(refreshed, 'tags', []) or [])
+        except Exception as e:
+            raise Exception(f"Failed to add tag '{tag}' to ticket {ticket_id}: {str(e)}")
+
+    def remove_tag(self, ticket_id: int, tag: str) -> List[str]:
+        try:
+            ticket = self.client.tickets(id=ticket_id)
+            current = list(getattr(ticket, 'tags', []) or [])
+            if tag in current:
+                current.remove(tag)
+                ticket.tags = current
+                self.client.tickets.update(ticket)
+            refreshed = self.client.tickets(id=ticket_id)
+            return list(getattr(refreshed, 'tags', []) or [])
+        except Exception as e:
+            raise Exception(f"Failed to remove tag '{tag}' from ticket {ticket_id}: {str(e)}")
+
+    def create_jira_link(self, ticket_id: int, issue_key: str) -> Dict[str, Any]:
+        try:
+            link = self.client.jira_links.create(Link(ticket_id=ticket_id, issue_key=issue_key))
+            return {
+                'id': link.id,
+                'ticket_id': link.ticket_id,
+                'issue_id': link.issue_id,
+                'issue_key': link.issue_key,
+                'url': link.url,
+                'created_at': str(link.created_at),
+            }
+        except Exception as e:
+            raise Exception(f"Failed to create Jira link for ticket {ticket_id} / {issue_key}: {str(e)}")
+
+    def delete_jira_link(self, link_id: int) -> None:
+        try:
+            self.client.jira_links.delete(Link(id=link_id))
+        except Exception as e:
+            raise Exception(f"Failed to delete Jira link {link_id}: {str(e)}")
 
     def update_ticket(self, ticket_id: int, **fields: Any) -> Dict[str, Any]:
         """
