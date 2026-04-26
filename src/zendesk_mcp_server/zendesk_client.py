@@ -1,5 +1,6 @@
 from typing import Dict, Any, List
 import json
+import os
 import urllib.request
 import urllib.parse
 import base64
@@ -803,3 +804,47 @@ class ZendeskClient:
             }
         except Exception as e:
             raise Exception(f"Failed to update ticket {ticket_id}: {str(e)}")
+
+
+def build_zendesk_client() -> ZendeskClient:
+    """Construct a ZendeskClient based on environment configuration.
+
+    Mode selection:
+      - If ZENDESK_CLIENT_ID is set (truthy — empty string falls through to
+        API-token mode), uses OAuth. Requires a token file written by
+        `zendesk-auth`. Hard-fails if the file is missing.
+      - Otherwise uses the legacy API-token path.
+    """
+    subdomain = os.getenv("ZENDESK_SUBDOMAIN")
+    if not subdomain:
+        raise EnvironmentError("ZENDESK_SUBDOMAIN is required.")
+
+    client_id = os.getenv("ZENDESK_CLIENT_ID")
+    if client_id:  # truthy — empty string falls through to API-token mode
+        client_secret = os.getenv("ZENDESK_CLIENT_SECRET")
+        if not client_secret:
+            raise EnvironmentError(
+                "ZENDESK_CLIENT_ID is set but ZENDESK_CLIENT_SECRET is missing."
+            )
+        try:
+            token_manager = OAuthTokenManager(subdomain, client_id, client_secret)
+        except FileNotFoundError as e:
+            raise EnvironmentError(
+                f"OAuth token file missing for subdomain '{subdomain}'. "
+                f"Run zendesk-auth to authenticate."
+            ) from e
+        return ZendeskClient.from_oauth(subdomain, token_manager)
+
+    email = os.getenv("ZENDESK_EMAIL")
+    api_token = os.getenv("ZENDESK_API_KEY")
+    if not email or not api_token:
+        missing = [
+            name
+            for name, val in [("ZENDESK_EMAIL", email), ("ZENDESK_API_KEY", api_token)]
+            if not val
+        ]
+        raise EnvironmentError(
+            f"API-token mode selected but missing: {', '.join(missing)}. "
+            f"Set ZENDESK_CLIENT_ID to use OAuth instead."
+        )
+    return ZendeskClient.from_api_token(subdomain, email, api_token)

@@ -11,7 +11,7 @@ from mcp.server import Server, types
 from mcp.server.stdio import stdio_server
 from pydantic import AnyUrl
 
-from zendesk_mcp_server.zendesk_client import ZendeskClient
+from zendesk_mcp_server.zendesk_client import build_zendesk_client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,11 +22,7 @@ logger = logging.getLogger("zendesk-mcp-server")
 logger.info("zendesk mcp server started")
 
 load_dotenv()
-zendesk_client = ZendeskClient(
-    subdomain=os.getenv("ZENDESK_SUBDOMAIN"),
-    email=os.getenv("ZENDESK_EMAIL"),
-    token=os.getenv("ZENDESK_API_KEY")
-)
+zendesk_client = build_zendesk_client()
 
 server = Server("Zendesk Server")
 
