@@ -2,12 +2,6 @@
 
 Fork: `github.com/lhocke/zendesk-mcp-server`. Dev repo at `~/zendesk-mcp-server`.
 
-## Open gaps (require extension)
-
-| Gap | Workaround today | Notes |
-|-----|-----------------|-------|
-| **Comment redaction** | `curl PUT /api/v2/tickets/{id}/comments/{comment_id}/redact.json` | No MCP tool; Zendesk doesn't support comment deletion — only body redaction |
-
 ## Potential additions (skills project benefit)
 
 | Tool | Value | Notes |
@@ -15,6 +9,12 @@ Fork: `github.com/lhocke/zendesk-mcp-server`. Dev repo at `~/zendesk-mcp-server`
 | **Knowledge base search** | `zendesk://knowledge-base` currently dumps all Help Center content in one shot — useful for ticket analysis skills but blunt; a `search_articles` tool or `get_article` by ID would give skills targeted retrieval without flooding context | zenpy: `client.help_center.articles.search(query=...)` |
 | **`list_triggers`** | Exposes event-driven rules (conditions + actions) as a structured spec for skill authoring | Same conditions/actions shape as macros; zenpy: `client.triggers` |
 | **`list_automations`** | Exposes time-based rules (conditions + actions) for the same purpose | zenpy: `client.automations` |
+
+## Out of scope (use Zendesk UI)
+
+| Item | Rationale |
+|------|-----------|
+| **Comment redaction** | Destructive admin-only operation, low frequency. Zendesk admin UI is the right path. `PUT /api/v2/tickets/{id}/comments/{comment_id}/redact.json` remains available for one-off curl when the UI is unavailable. |
 
 ## Closed gaps
 
