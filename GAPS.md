@@ -8,6 +8,13 @@ Fork: `github.com/lhocke/zendesk-mcp-server`. Dev repo at `~/zendesk-mcp-server`
 |-----|-----------------|-------|
 | **Comment redaction** | `curl PUT /api/v2/tickets/{id}/comments/{comment_id}/redact.json` | No MCP tool; Zendesk doesn't support comment deletion — only body redaction |
 
+## Potential additions (skills project benefit)
+
+| Tool | Value | Notes |
+|------|-------|-------|
+| **`list_triggers`** | Exposes event-driven rules (conditions + actions) as a structured spec for skill authoring | Same conditions/actions shape as macros; zenpy: `client.triggers` |
+| **`list_automations`** | Exposes time-based rules (conditions + actions) for the same purpose | zenpy: `client.automations` |
+
 ## Closed gaps
 
 | Gap | Fix | Status |

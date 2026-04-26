@@ -371,6 +371,17 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={"type": "object", "properties": {}, "required": []}
         ),
         types.Tool(
+            name="get_view",
+            description="Return the full definition of a Zendesk view including its filter conditions, for understanding what a view captures without executing it",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "The ID of the view (obtain via list_views)"},
+                },
+                "required": ["view_id"]
+            }
+        ),
+        types.Tool(
             name="get_view_tickets",
             description="Return the tickets in a Zendesk view",
             inputSchema={
@@ -617,6 +628,12 @@ async def handle_call_tool(
         elif name == "list_views":
             views = zendesk_client.list_views()
             return [types.TextContent(type="text", text=json.dumps(views, indent=2))]
+
+        elif name == "get_view":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            view = zendesk_client.get_view(int(arguments["view_id"]))
+            return [types.TextContent(type="text", text=json.dumps(view, indent=2))]
 
         elif name == "get_view_tickets":
             if not arguments:

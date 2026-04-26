@@ -607,6 +607,28 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to apply macro {macro_id} to ticket {ticket_id}: {str(e)}")
 
+    def get_view(self, view_id: int) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/views/{view_id}.json"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            v = data.get('view', {})
+            return {
+                'id': v.get('id'),
+                'title': v.get('title'),
+                'active': v.get('active'),
+                'conditions': v.get('conditions'),
+                'execution': v.get('execution'),
+            }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to get view {view_id}: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to get view {view_id}: {str(e)}")
+
     def list_views(self) -> List[Dict[str, Any]]:
         try:
             return [
