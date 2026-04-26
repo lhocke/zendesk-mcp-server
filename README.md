@@ -25,12 +25,12 @@ The server supports two authentication modes. OAuth is preferred — it ties com
 
 ### OAuth (recommended)
 
-OAuth requires a one-time admin step to register an OAuth client, then a one-time per-user browser authorization.
+OAuth requires a one-time admin step to register an OAuth client, then a one-time per-user browser authorization. Tokens are tied to your individual Zendesk identity, so comments appear under your name automatically.
 
 **Admin setup (once per team):**
 
 1. In Zendesk Admin Center, go to **Apps and Integrations → APIs → OAuth Clients**.
-2. Click **Add OAuth client**. Set the redirect URI to `http://localhost:8085/callback`. Note the `client_id` and `client_secret`.
+2. Click **Add OAuth client**. Set the redirect URI to `http://127.0.0.1:47890/callback` (use this exact value — Zendesk requires a byte-for-byte match). Note the `client_id` and `client_secret`.
 3. Distribute `ZENDESK_CLIENT_ID`, `ZENDESK_CLIENT_SECRET`, and `ZENDESK_SUBDOMAIN` to your team (e.g. via a shared `.env.example`).
 
 **Per-user setup:**
@@ -42,13 +42,23 @@ OAuth requires a one-time admin step to register an OAuth client, then a one-tim
    uv run zendesk-auth
    ```
 
-   This opens a browser window to authorize the OAuth client. After authorizing, your token is saved to `~/.zendesk_mcp/{subdomain}.json`. You will not need to repeat this step unless the token expires (refresh tokens last up to 90 days).
+   This opens a browser window to authorize the OAuth client. After authorizing, your token is saved to `~/.config/zendesk-mcp/{subdomain}.json`. You will not need to repeat this step unless your refresh token expires or is revoked.
+
+   If you are in a headless environment, print the URL instead of opening a browser:
+
+   ```bash
+   uv run zendesk-auth --no-browser
+   ```
+
+   If port 47890 is in use, pick another port and pass `--port N` (register `http://127.0.0.1:N/callback` as an additional redirect URI in your Zendesk OAuth client first).
 
 3. Verify authentication succeeded:
 
    ```bash
    uv run zendesk-auth --check
    ```
+
+   Prints the subdomain and token expiry. Exit code is 0 on success, non-zero if the token file is missing or corrupt.
 
 4. Configure Claude Desktop or Claude Code:
 
@@ -67,6 +77,8 @@ OAuth requires a one-time admin step to register an OAuth client, then a one-tim
      }
    }
    ```
+
+**Coexistence with API-token mode:** if `ZENDESK_CLIENT_ID` is set, the server runs in OAuth mode and requires a valid token file (run `zendesk-auth` to create one). If `ZENDESK_CLIENT_ID` is not set, the server falls back to API-token mode using `ZENDESK_EMAIL` and `ZENDESK_API_KEY`. There is no silent fallback between modes.
 
 ### API Token (fallback)
 

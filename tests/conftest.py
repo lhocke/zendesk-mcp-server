@@ -18,6 +18,7 @@ def clean_env(monkeypatch):
     for key in list(os.environ):
         if key.startswith("ZENDESK_"):
             monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr("zendesk_mcp_server.auth.load_dotenv", lambda **kw: None)
 
 
 @pytest.fixture
