@@ -1,10 +1,13 @@
 from typing import Dict, Any, List
 import json
+import logging
 import os
 import urllib.request
 import urllib.parse
 import base64
 import requests as _requests
+
+logger = logging.getLogger(__name__)
 
 from zenpy import Zenpy
 from zenpy.lib.api_objects import Comment
@@ -833,6 +836,7 @@ def build_zendesk_client() -> ZendeskClient:
                 f"OAuth token file missing for subdomain '{subdomain}'. "
                 f"Run zendesk-auth to authenticate."
             ) from e
+        logger.warning("auth_mode=oauth subdomain=%s", subdomain)
         return ZendeskClient.from_oauth(subdomain, token_manager)
 
     email = os.getenv("ZENDESK_EMAIL")
