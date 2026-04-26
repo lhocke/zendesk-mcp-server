@@ -476,6 +476,42 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to list custom statuses: {str(e)}")
 
+    def get_jira_links(self, ticket_id: int) -> List[Dict[str, Any]]:
+        try:
+            links = self.client.jira_links(ticket_id=ticket_id)
+            return [
+                {
+                    'id': l.id,
+                    'ticket_id': l.ticket_id,
+                    'issue_id': l.issue_id,
+                    'issue_key': l.issue_key,
+                    'url': l.url,
+                    'created_at': str(l.created_at),
+                    'updated_at': str(l.updated_at),
+                }
+                for l in links
+            ]
+        except Exception as e:
+            raise Exception(f"Failed to get Jira links for ticket {ticket_id}: {str(e)}")
+
+    def get_zendesk_tickets_for_jira_issue(self, issue_id: str) -> List[Dict[str, Any]]:
+        try:
+            links = self.client.jira_links(issue_id=issue_id)
+            return [
+                {
+                    'id': l.id,
+                    'ticket_id': l.ticket_id,
+                    'issue_id': l.issue_id,
+                    'issue_key': l.issue_key,
+                    'url': l.url,
+                    'created_at': str(l.created_at),
+                    'updated_at': str(l.updated_at),
+                }
+                for l in links
+            ]
+        except Exception as e:
+            raise Exception(f"Failed to get Zendesk tickets for Jira issue {issue_id}: {str(e)}")
+
     def update_ticket(self, ticket_id: int, **fields: Any) -> Dict[str, Any]:
         """
         Update a Zendesk ticket with provided fields using Zenpy.

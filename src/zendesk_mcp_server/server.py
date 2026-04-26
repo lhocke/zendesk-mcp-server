@@ -305,6 +305,34 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="get_jira_links",
+            description="Get all Jira issues linked to a Zendesk ticket via the Jira integration",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer",
+                        "description": "The Zendesk ticket ID to look up linked Jira issues for"
+                    }
+                },
+                "required": ["ticket_id"]
+            }
+        ),
+        types.Tool(
+            name="get_zendesk_tickets_for_jira_issue",
+            description="Get all Zendesk tickets linked to a given Jira issue ID via the Jira integration",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "issue_id": {
+                        "type": "string",
+                        "description": "The Jira issue ID (numeric, e.g. '60747') to look up linked Zendesk tickets for"
+                    }
+                },
+                "required": ["issue_id"]
+            }
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -457,6 +485,18 @@ async def handle_call_tool(
         elif name == "list_custom_statuses":
             statuses = zendesk_client.list_custom_statuses()
             return [types.TextContent(type="text", text=json.dumps(statuses, indent=2))]
+
+        elif name == "get_jira_links":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            links = zendesk_client.get_jira_links(int(arguments["ticket_id"]))
+            return [types.TextContent(type="text", text=json.dumps(links, indent=2))]
+
+        elif name == "get_zendesk_tickets_for_jira_issue":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            links = zendesk_client.get_zendesk_tickets_for_jira_issue(str(arguments["issue_id"]))
+            return [types.TextContent(type="text", text=json.dumps(links, indent=2))]
 
         elif name == "update_ticket":
             if not arguments:
