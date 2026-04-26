@@ -356,9 +356,9 @@ class ZendeskClient:
             if label_names:
                 kwargs['label_names'] = label_names
             if section_id is not None:
-                kwargs['section_id'] = section_id
+                kwargs['section'] = section_id
             if category_id is not None:
-                kwargs['category_id'] = category_id
+                kwargs['category'] = category_id
 
             results = self.client.help_center.articles.search(query, **kwargs)
             hits = []
