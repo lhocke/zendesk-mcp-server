@@ -514,6 +514,110 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to get Zendesk tickets for Jira issue {issue_id}: {str(e)}")
 
+    def list_ticket_fields(self) -> List[Dict[str, Any]]:
+        try:
+            return [
+                {
+                    'id': f.id,
+                    'title': f.title,
+                    'type': f.type,
+                    'description': f.description,
+                    'active': f.active,
+                    'required': f.required,
+                }
+                for f in self.client.ticket_fields()
+                if getattr(f, 'active', True)
+            ]
+        except Exception as e:
+            raise Exception(f"Failed to list ticket fields: {str(e)}")
+
+    def list_macros(self) -> List[Dict[str, Any]]:
+        try:
+            result = []
+            for m in self.client.macros():
+                if not getattr(m, 'active', True):
+                    continue
+                actions = [
+                    {'field': getattr(a, 'field', None), 'value': getattr(a, 'value', None)}
+                    for a in (getattr(m, 'actions', []) or [])
+                ]
+                result.append({
+                    'id': m.id,
+                    'title': m.title,
+                    'description': m.description,
+                    'actions': actions,
+                })
+            return result
+        except Exception as e:
+            raise Exception(f"Failed to list macros: {str(e)}")
+
+    def apply_macro(self, ticket_id: int, macro_id: int) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/tickets/{ticket_id}/macros/{macro_id}/apply.json"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            result = data.get('result', {})
+            ticket_changes = result.get('ticket', {})
+            comment_data = result.get('comment', {})
+
+            if ticket_changes:
+                ticket = self.client.tickets(id=ticket_id)
+                skip = {'id', 'url', 'created_at', 'updated_at'}
+                for key, value in ticket_changes.items():
+                    if key not in skip:
+                        setattr(ticket, key, value)
+                self.client.tickets.update(ticket)
+
+            comment_added = False
+            if comment_data:
+                body = comment_data.get('html_body') or comment_data.get('body')
+                if body:
+                    self.post_comment(ticket_id, body, public=comment_data.get('public', True))
+                    comment_added = True
+
+            refreshed = self.client.tickets(id=ticket_id)
+            return {
+                'id': refreshed.id,
+                'status': refreshed.status,
+                'tags': list(getattr(refreshed, 'tags', []) or []),
+                'applied_changes': ticket_changes,
+                'comment_added': comment_added,
+            }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to apply macro {macro_id} to ticket {ticket_id}: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to apply macro {macro_id} to ticket {ticket_id}: {str(e)}")
+
+    def list_views(self) -> List[Dict[str, Any]]:
+        try:
+            return [
+                {'id': v.id, 'title': v.title}
+                for v in self.client.views.active()
+            ]
+        except Exception as e:
+            raise Exception(f"Failed to list views: {str(e)}")
+
+    def get_view_tickets(self, view_id: int) -> List[Dict[str, Any]]:
+        try:
+            return [
+                {
+                    'id': t.id,
+                    'subject': t.subject,
+                    'status': t.status,
+                    'priority': t.priority,
+                    'assignee_id': t.assignee_id,
+                    'created_at': str(t.created_at),
+                    'updated_at': str(t.updated_at),
+                }
+                for t in self.client.views.tickets(view_id)
+            ]
+        except Exception as e:
+            raise Exception(f"Failed to get tickets for view {view_id}: {str(e)}")
+
     def add_tag(self, ticket_id: int, tag: str) -> List[str]:
         try:
             ticket = self.client.tickets(id=ticket_id)

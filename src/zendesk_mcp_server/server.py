@@ -333,6 +333,44 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="list_ticket_fields",
+            description="List all active Zendesk ticket fields, including custom fields with their IDs and types",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="list_macros",
+            description="List all active Zendesk macros with their actions, for use with apply_macro",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="apply_macro",
+            description="Apply a macro to a Zendesk ticket — updates ticket fields and posts any comment the macro defines",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "integer", "description": "The ticket to apply the macro to"},
+                    "macro_id": {"type": "integer", "description": "The ID of the macro to apply (obtain via list_macros)"},
+                },
+                "required": ["ticket_id", "macro_id"]
+            }
+        ),
+        types.Tool(
+            name="list_views",
+            description="List all active Zendesk views (saved ticket queues) with their IDs and titles",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="get_view_tickets",
+            description="Return the tickets in a Zendesk view",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "The ID of the view (obtain via list_views)"},
+                },
+                "required": ["view_id"]
+            }
+        ),
+        types.Tool(
             name="add_tag",
             description="Add a single tag to a Zendesk ticket without overwriting existing tags",
             inputSchema={
@@ -544,6 +582,30 @@ async def handle_call_tool(
                 raise ValueError("Missing arguments")
             links = zendesk_client.get_zendesk_tickets_for_jira_issue(str(arguments["issue_id"]))
             return [types.TextContent(type="text", text=json.dumps(links, indent=2))]
+
+        elif name == "list_ticket_fields":
+            fields = zendesk_client.list_ticket_fields()
+            return [types.TextContent(type="text", text=json.dumps(fields, indent=2))]
+
+        elif name == "list_macros":
+            macros = zendesk_client.list_macros()
+            return [types.TextContent(type="text", text=json.dumps(macros, indent=2))]
+
+        elif name == "apply_macro":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            result = zendesk_client.apply_macro(int(arguments["ticket_id"]), int(arguments["macro_id"]))
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
+
+        elif name == "list_views":
+            views = zendesk_client.list_views()
+            return [types.TextContent(type="text", text=json.dumps(views, indent=2))]
+
+        elif name == "get_view_tickets":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            tickets = zendesk_client.get_view_tickets(int(arguments["view_id"]))
+            return [types.TextContent(type="text", text=json.dumps(tickets, indent=2))]
 
         elif name == "add_tag":
             if not arguments:
