@@ -220,6 +220,24 @@ List all custom ticket statuses defined in Zendesk, including their IDs and stat
 
 - Output: Returns a list of custom statuses with id, agent_label, end_user_label, status_category, active, and default flag.
 
+### get_jira_links
+
+Get all Jira issues linked to a Zendesk ticket via the Jira integration.
+
+- Input:
+  - `ticket_id` (integer): The Zendesk ticket ID to look up linked Jira issues for
+
+- Output: Returns a list of Jira links with `id`, `ticket_id`, `issue_id`, `issue_key` (e.g. `ENG-123`), `url`, `created_at`, and `updated_at`.
+
+### get_zendesk_tickets_for_jira_issue
+
+Get all Zendesk tickets linked to a given Jira issue — the reverse lookup of `get_jira_links`.
+
+- Input:
+  - `issue_id` (string): The numeric Jira issue ID (e.g. `'60747'`) to look up linked Zendesk tickets for
+
+- Output: Same shape as `get_jira_links` — each entry includes `ticket_id`, `issue_key`, and timestamps.
+
 ### get_ticket_attachment
 
 Fetch a Zendesk ticket attachment by its content URL and return the file as base64-encoded data.
