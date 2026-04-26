@@ -44,26 +44,74 @@ The server supports two modes. OAuth is preferred — comments appear under your
    uv run zendesk-auth --check
    ```
 
-4. Configure your MCP client (example for Claude Desktop / Claude Code):
-
-   ```json
-   {
-     "mcpServers": {
-       "zendesk": {
-         "command": "uv",
-         "args": ["--directory", "/path/to/zendesk-mcp-server", "run", "zendesk"]
-       }
-     }
-   }
-   ```
+4. Configure your MCP client. See [Connecting to Claude Code](#connecting-to-claude-code) below.
 
 ### API Token (fallback)
 
 1. Generate a token in **Admin Center → Apps and Integrations → APIs → API Tokens**.
 2. Copy `.env.example` to `.env` and fill in `ZENDESK_SUBDOMAIN`, `ZENDESK_EMAIL`, and `ZENDESK_API_KEY`.
-3. Configure your MCP client as above.
+3. Configure your MCP client. See [Connecting to Claude Code](#connecting-to-claude-code) below.
 
 **Note:** each user must run their own instance with their own email — public comments are attributed to `ZENDESK_EMAIL`, so sharing a single configured instance will make all replies appear to come from the same person.
+
+### Running the server
+
+The server supports two transport modes controlled by `ZENDESK_MCP_TRANSPORT`:
+
+**HTTP (recommended)** — binds to `127.0.0.1:8000` by default. Use `ZENDESK_MCP_PORT` to change the port.
+
+```bash
+ZENDESK_MCP_TRANSPORT=http uv run zendesk
+```
+
+Configure your MCP client with the HTTP URL:
+
+```json
+{
+  "mcpServers": {
+    "zendesk": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp"
+    }
+  }
+}
+```
+
+HTTP transport enables auto-reconnect in clients that support it — if the server restarts, the client reconnects without losing your session.
+
+**stdio (fallback)** — spawned directly by the MCP client. Set `ZENDESK_MCP_TRANSPORT=stdio` (or leave unset) and configure your client with the command form:
+
+```json
+{
+  "mcpServers": {
+    "zendesk": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/zendesk-mcp-server", "run", "zendesk"]
+    }
+  }
+}
+```
+
+**Dev mode (HTTP with hot-reload on file save):**
+
+```bash
+uv run uvicorn zendesk_mcp_server.server:app --reload --reload-dir src/zendesk_mcp_server
+```
+
+> **Claude Code tip:** add a `SessionStart` hook to `~/.claude/settings.json` to auto-start the server when Claude Code opens:
+> ```json
+> {
+>   "hooks": {
+>     "SessionStart": [{
+>       "hooks": [{
+>         "type": "command",
+>         "command": "nc -z 127.0.0.1 8000 2>/dev/null || ZENDESK_MCP_TRANSPORT=http uv --directory ~/.claude/mcp-servers/zendesk-mcp-server run zendesk &",
+>         "async": true
+>       }]
+>     }]
+>   }
+> }
+> ```
 
 ### Docker
 
