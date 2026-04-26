@@ -24,3 +24,6 @@ jobs:
 
       - name: Build the project
         run: uv build
+
+      - name: Run tests
+        run: uv run pytest
