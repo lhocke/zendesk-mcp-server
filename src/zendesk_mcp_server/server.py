@@ -1,15 +1,21 @@
 import asyncio
+import contextlib
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from typing import Any, Dict
 
 from cachetools.func import ttl_cache
 from dotenv import load_dotenv
-from mcp.server import InitializationOptions, NotificationOptions
-from mcp.server import Server, types
+import mcp.types as types
+from mcp.server import InitializationOptions, NotificationOptions, Server
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from pydantic import AnyUrl
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.types import Receive, Scope, Send
 
 from zendesk_mcp_server.zendesk_client import build_zendesk_client
 
@@ -25,6 +31,25 @@ load_dotenv()
 zendesk_client = build_zendesk_client()
 
 server = Server("Zendesk Server")
+
+# HTTP transport (Streamable HTTP via Starlette + uvicorn)
+_session_manager = StreamableHTTPSessionManager(app=server, stateless=False)
+
+
+async def _handle_streamable_http(scope: Scope, receive: Receive, send: Send) -> None:
+    await _session_manager.handle_request(scope, receive, send)
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(starlette_app: Starlette) -> AsyncIterator[None]:
+    async with _session_manager.run():
+        yield
+
+
+app = Starlette(
+    routes=[Mount("/mcp", app=_handle_streamable_http)],
+    lifespan=_lifespan,
+)
 
 TICKET_ANALYSIS_TEMPLATE = """
 You are a helpful Zendesk support analyst. You've been asked to analyze ticket #{ticket_id}.
@@ -729,20 +754,29 @@ async def handle_read_resource(uri: AnyUrl) -> str:
 
 
 async def main():
-    # Run the server using stdin/stdout streams
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream=read_stream,
-            write_stream=write_stream,
-            initialization_options=InitializationOptions(
-                server_name="Zendesk",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+    transport = os.getenv("ZENDESK_MCP_TRANSPORT", "stdio")
+    port = int(os.getenv("ZENDESK_MCP_PORT", "8000"))
+
+    if transport == "http":
+        import uvicorn
+        logger.info(f"Starting HTTP transport on 127.0.0.1:{port}")
+        config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
+        server_instance = uvicorn.Server(config)
+        await server_instance.serve()
+    else:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream=read_stream,
+                write_stream=write_stream,
+                initialization_options=InitializationOptions(
+                    server_name="Zendesk",
+                    server_version="0.1.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
                 ),
-            ),
-        )
+            )
 
 
 if __name__ == "__main__":
