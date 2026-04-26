@@ -461,6 +461,37 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="search_articles",
+            description="Search Help Center articles by keyword. Returns a list of hits with id, title, snippet, url, section, category, and labels. Use get_article to fetch the full body of a specific article.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text"},
+                    "limit": {"type": "integer", "description": "Max results (default 10, max 25)"},
+                    "label_names": {"type": "array", "items": {"type": "string"}, "description": "Filter to articles with any of these labels"},
+                    "section_id": {"type": "integer", "description": "Restrict to a specific section"},
+                    "category_id": {"type": "integer", "description": "Restrict to a specific category"},
+                },
+                "required": ["query"]
+            }
+        ),
+        types.Tool(
+            name="get_article",
+            description="Fetch a single Help Center article by ID, including its full HTML body",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "article_id": {"type": "integer", "description": "The article ID"},
+                },
+                "required": ["article_id"]
+            }
+        ),
+        types.Tool(
+            name="list_sections",
+            description="List all Help Center sections with their parent category",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -685,6 +716,28 @@ async def handle_call_tool(
                 raise ValueError("Missing arguments")
             zendesk_client.delete_jira_link(int(arguments["link_id"]))
             return [types.TextContent(type="text", text=json.dumps({"message": f"Jira link {arguments['link_id']} deleted"}))]
+
+        elif name == "search_articles":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            results = zendesk_client.search_articles(
+                query=str(arguments["query"]),
+                limit=int(arguments.get("limit", 10)),
+                label_names=arguments.get("label_names"),
+                section_id=int(arguments["section_id"]) if arguments.get("section_id") is not None else None,
+                category_id=int(arguments["category_id"]) if arguments.get("category_id") is not None else None,
+            )
+            return [types.TextContent(type="text", text=json.dumps(results, indent=2))]
+
+        elif name == "get_article":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            article = zendesk_client.get_article(int(arguments["article_id"]))
+            return [types.TextContent(type="text", text=json.dumps(article, indent=2))]
+
+        elif name == "list_sections":
+            sections = zendesk_client.list_sections()
+            return [types.TextContent(type="text", text=json.dumps(sections, indent=2))]
 
         elif name == "update_ticket":
             if not arguments:
