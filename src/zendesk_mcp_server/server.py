@@ -343,6 +343,17 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={"type": "object", "properties": {}, "required": []}
         ),
         types.Tool(
+            name="preview_macro",
+            description="Return the field changes and comment a macro would make, without applying anything. Useful for understanding what a macro does before calling apply_macro.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "macro_id": {"type": "integer", "description": "The ID of the macro to preview (obtain via list_macros)"},
+                },
+                "required": ["macro_id"]
+            }
+        ),
+        types.Tool(
             name="apply_macro",
             description="Apply a macro to a Zendesk ticket — updates ticket fields and posts any comment the macro defines",
             inputSchema={
@@ -590,6 +601,12 @@ async def handle_call_tool(
         elif name == "list_macros":
             macros = zendesk_client.list_macros()
             return [types.TextContent(type="text", text=json.dumps(macros, indent=2))]
+
+        elif name == "preview_macro":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            result = zendesk_client.preview_macro(int(arguments["macro_id"]))
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "apply_macro":
             if not arguments:

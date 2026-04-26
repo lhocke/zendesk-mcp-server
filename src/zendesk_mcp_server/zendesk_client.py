@@ -551,6 +551,21 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to list macros: {str(e)}")
 
+    def preview_macro(self, macro_id: int) -> Dict[str, Any]:
+        try:
+            url = f"{self.base_url}/macros/{macro_id}/apply.json"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            return data.get('result', {})
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to preview macro {macro_id}: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to preview macro {macro_id}: {str(e)}")
+
     def apply_macro(self, ticket_id: int, macro_id: int) -> Dict[str, Any]:
         try:
             url = f"{self.base_url}/tickets/{ticket_id}/macros/{macro_id}/apply.json"
