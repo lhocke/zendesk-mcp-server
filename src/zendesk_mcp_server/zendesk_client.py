@@ -112,6 +112,7 @@ class ZendeskClient:
                 'assignee_id': ticket.assignee_id,
                 'organization_id': ticket.organization_id,
                 'tags': list(getattr(ticket, 'tags', []) or []),
+                'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(ticket, 'custom_fields', None) or [])],
             }
         except Exception as e:
             raise Exception(f"Failed to get ticket {ticket_id}: {str(e)}")
@@ -291,7 +292,8 @@ class ZendeskClient:
                     'created_at': ticket.get('created_at'),
                     'updated_at': ticket.get('updated_at'),
                     'requester_id': ticket.get('requester_id'),
-                    'assignee_id': ticket.get('assignee_id')
+                    'assignee_id': ticket.get('assignee_id'),
+                    'custom_fields': ticket.get('custom_fields', []),
                 })
 
             return {
@@ -475,6 +477,7 @@ class ZendeskClient:
                 'assignee_id': getattr(created, 'assignee_id', assignee_id),
                 'organization_id': getattr(created, 'organization_id', None),
                 'tags': list(getattr(created, 'tags', tags or []) or []),
+                'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(created, 'custom_fields', None) or [])],
             }
         except Exception as e:
             raise Exception(f"Failed to create ticket: {str(e)}")
@@ -500,6 +503,7 @@ class ZendeskClient:
                     'updated_at': t.get('updated_at'),
                     'assignee_id': t.get('assignee_id'),
                     'organization_id': t.get('organization_id'),
+                    'custom_fields': t.get('custom_fields', []),
                 }
                 for t in data.get('results', [])
                 if t.get('result_type') == 'ticket'
@@ -809,6 +813,7 @@ class ZendeskClient:
                     'assignee_id': t.assignee_id,
                     'created_at': str(t.created_at),
                     'updated_at': str(t.updated_at),
+                    'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(t, 'custom_fields', None) or [])],
                 }
                 for t in self.client.views.tickets(view_id)
             ]
@@ -900,6 +905,7 @@ class ZendeskClient:
                 'assignee_id': refreshed.assignee_id,
                 'organization_id': refreshed.organization_id,
                 'tags': list(getattr(refreshed, 'tags', []) or []),
+                'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(refreshed, 'custom_fields', None) or [])],
             }
         except Exception as e:
             raise Exception(f"Failed to update ticket {ticket_id}: {str(e)}")
