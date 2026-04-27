@@ -1,15 +1,21 @@
 import asyncio
+import contextlib
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from typing import Any, Dict
 
 from cachetools.func import ttl_cache
 from dotenv import load_dotenv
-from mcp.server import InitializationOptions, NotificationOptions
-from mcp.server import Server, types
+import mcp.types as types
+from mcp.server import InitializationOptions, NotificationOptions, Server
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from pydantic import AnyUrl
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.types import Receive, Scope, Send
 
 from zendesk_mcp_server.zendesk_client import build_zendesk_client
 
@@ -25,6 +31,25 @@ load_dotenv()
 zendesk_client = build_zendesk_client()
 
 server = Server("Zendesk Server")
+
+# HTTP transport (Streamable HTTP via Starlette + uvicorn)
+_session_manager = StreamableHTTPSessionManager(app=server, stateless=False)
+
+
+async def _handle_streamable_http(scope: Scope, receive: Receive, send: Send) -> None:
+    await _session_manager.handle_request(scope, receive, send)
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(starlette_app: Starlette) -> AsyncIterator[None]:
+    async with _session_manager.run():
+        yield
+
+
+app = Starlette(
+    routes=[Mount("/mcp", app=_handle_streamable_http)],
+    lifespan=_lifespan,
+)
 
 TICKET_ANALYSIS_TEMPLATE = """
 You are a helpful Zendesk support analyst. You've been asked to analyze ticket #{ticket_id}.
@@ -436,6 +461,37 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="search_articles",
+            description="Search Help Center articles by keyword. Returns a list of hits with id, title, snippet, url, section, category, and labels. Use get_article to fetch the full body of a specific article.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text"},
+                    "limit": {"type": "integer", "description": "Max results (default 10, max 25)"},
+                    "label_names": {"type": "array", "items": {"type": "string"}, "description": "Filter to articles with any of these labels"},
+                    "section_id": {"type": "integer", "description": "Restrict to a specific section"},
+                    "category_id": {"type": "integer", "description": "Restrict to a specific category"},
+                },
+                "required": ["query"]
+            }
+        ),
+        types.Tool(
+            name="get_article",
+            description="Fetch a single Help Center article by ID, including its full HTML body",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "article_id": {"type": "integer", "description": "The article ID"},
+                },
+                "required": ["article_id"]
+            }
+        ),
+        types.Tool(
+            name="list_sections",
+            description="List all Help Center sections with their parent category",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
             name="update_ticket",
             description="Update fields on an existing Zendesk ticket (e.g., status, priority, assignee_id)",
             inputSchema={
@@ -661,6 +717,28 @@ async def handle_call_tool(
             zendesk_client.delete_jira_link(int(arguments["link_id"]))
             return [types.TextContent(type="text", text=json.dumps({"message": f"Jira link {arguments['link_id']} deleted"}))]
 
+        elif name == "search_articles":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            results = zendesk_client.search_articles(
+                query=str(arguments["query"]),
+                limit=int(arguments.get("limit", 10)),
+                label_names=arguments.get("label_names"),
+                section_id=int(arguments["section_id"]) if arguments.get("section_id") is not None else None,
+                category_id=int(arguments["category_id"]) if arguments.get("category_id") is not None else None,
+            )
+            return [types.TextContent(type="text", text=json.dumps(results, indent=2))]
+
+        elif name == "get_article":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            article = zendesk_client.get_article(int(arguments["article_id"]))
+            return [types.TextContent(type="text", text=json.dumps(article, indent=2))]
+
+        elif name == "list_sections":
+            sections = zendesk_client.list_sections()
+            return [types.TextContent(type="text", text=json.dumps(sections, indent=2))]
+
         elif name == "update_ticket":
             if not arguments:
                 raise ValueError("Missing arguments")
@@ -729,20 +807,29 @@ async def handle_read_resource(uri: AnyUrl) -> str:
 
 
 async def main():
-    # Run the server using stdin/stdout streams
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream=read_stream,
-            write_stream=write_stream,
-            initialization_options=InitializationOptions(
-                server_name="Zendesk",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+    transport = os.getenv("ZENDESK_MCP_TRANSPORT", "stdio")
+    port = int(os.getenv("ZENDESK_MCP_PORT", "8000"))
+
+    if transport == "http":
+        import uvicorn
+        logger.info(f"Starting HTTP transport on 127.0.0.1:{port}")
+        config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
+        server_instance = uvicorn.Server(config)
+        await server_instance.serve()
+    else:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream=read_stream,
+                write_stream=write_stream,
+                initialization_options=InitializationOptions(
+                    server_name="Zendesk",
+                    server_version="0.1.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
                 ),
-            ),
-        )
+            )
 
 
 if __name__ == "__main__":

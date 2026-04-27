@@ -14,7 +14,28 @@ from zenpy.lib.api_objects import Comment
 from zenpy.lib.api_objects import Link
 from zenpy.lib.api_objects import Ticket as ZenpyTicket
 
+from html.parser import HTMLParser
+
 from zendesk_mcp_server.oauth import OAuthTokenManager, retry_on_401
+
+
+def _make_snippet(html: str, max_chars: int = 200) -> str:
+    class _Stripper(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts: List[str] = []
+        def handle_data(self, data: str):
+            self.parts.append(data)
+
+    stripper = _Stripper()
+    stripper.feed(html)
+    text = ' '.join(stripper.parts).split()
+    text = ' '.join(text)
+    if len(text) <= max_chars:
+        return text
+    truncated = text[:max_chars]
+    boundary = truncated.rfind(' ')
+    return (truncated[:boundary] if boundary > 0 else truncated) + '...'
 
 
 class ZendeskClient:
@@ -319,6 +340,81 @@ class ZendeskClient:
             return kb
         except Exception as e:
             raise Exception(f"Failed to fetch knowledge base: {str(e)}")
+
+    @retry_on_401
+    def search_articles(
+        self,
+        query: str,
+        limit: int = 10,
+        label_names: List[str] | None = None,
+        section_id: int | None = None,
+        category_id: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        try:
+            limit = min(limit, 25)
+            kwargs: Dict[str, Any] = {}
+            if label_names:
+                kwargs['label_names'] = label_names
+            if section_id is not None:
+                kwargs['section'] = section_id
+            if category_id is not None:
+                kwargs['category'] = category_id
+
+            results = self.client.help_center.articles.search(query, **kwargs)
+            hits = []
+            for article in results:
+                if len(hits) >= limit:
+                    break
+                section = self.client.help_center._get_section(article.section_id) if article.section_id else None
+                category = self.client.help_center._get_category(section.category_id) if section and section.category_id else None
+                hits.append({
+                    'id': article.id,
+                    'title': article.title,
+                    'snippet': _make_snippet(article.body or ''),
+                    'url': article.html_url,
+                    'section': {'id': section.id, 'name': section.name} if section else None,
+                    'category': {'id': category.id, 'name': category.name} if category else None,
+                    'labels': list(article.label_names or []),
+                })
+            return hits
+        except Exception as e:
+            raise Exception(f"Failed to search articles: {str(e)}")
+
+    @retry_on_401
+    def get_article(self, article_id: int) -> Dict[str, Any]:
+        try:
+            article = self.client.help_center._get_article(article_id)
+            section = self.client.help_center._get_section(article.section_id) if article.section_id else None
+            category = self.client.help_center._get_category(section.category_id) if section and section.category_id else None
+            return {
+                'id': article.id,
+                'title': article.title,
+                'body': article.body,
+                'url': article.html_url,
+                'section': {'id': section.id, 'name': section.name} if section else None,
+                'category': {'id': category.id, 'name': category.name} if category else None,
+                'labels': list(article.label_names or []),
+                'updated_at': str(article.updated_at),
+            }
+        except Exception as e:
+            raise Exception(f"Failed to fetch article {article_id}: {str(e)}")
+
+    @retry_on_401
+    def list_sections(self) -> List[Dict[str, Any]]:
+        try:
+            categories = {c.id: c for c in self.client.help_center.categories()}
+            sections = []
+            for section in self.client.help_center.sections():
+                category = categories.get(section.category_id)
+                sections.append({
+                    'id': section.id,
+                    'name': section.name,
+                    'description': section.description,
+                    'category': {'id': category.id, 'name': category.name} if category else None,
+                })
+            return sections
+        except Exception as e:
+            raise Exception(f"Failed to list sections: {str(e)}")
 
     @retry_on_401
     def create_ticket(
