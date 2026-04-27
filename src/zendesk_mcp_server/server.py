@@ -154,7 +154,7 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "ticket_id": {
-                        "type": "integer",
+                        "type": ["integer", "string"],
                         "description": "The ID of the ticket to retrieve"
                     }
                 },
@@ -169,8 +169,8 @@ async def handle_list_tools() -> list[types.Tool]:
                 "properties": {
                     "subject": {"type": "string", "description": "Ticket subject"},
                     "description": {"type": "string", "description": "Ticket description"},
-                    "requester_id": {"type": "integer"},
-                    "assignee_id": {"type": "integer"},
+                    "requester_id": {"type": ["integer", "string"]},
+                    "assignee_id": {"type": ["integer", "string"]},
                     "priority": {"type": "string", "description": "low, normal, high, urgent"},
                     "type": {"type": "string", "description": "problem, incident, question, task"},
                     "tags": {"type": "array", "items": {"type": "string"}},
@@ -186,12 +186,12 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "page": {
-                        "type": "integer",
+                        "type": ["integer", "string"],
                         "description": "Page number",
                         "default": 1
                     },
                     "per_page": {
-                        "type": "integer",
+                        "type": ["integer", "string"],
                         "description": "Number of tickets per page (max 100)",
                         "default": 25
                     },
@@ -216,7 +216,7 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "ticket_id": {
-                        "type": "integer",
+                        "type": ["integer", "string"],
                         "description": "The ID of the ticket to get comments for"
                     }
                 },
@@ -230,7 +230,7 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "ticket_id": {
-                        "type": "integer",
+                        "type": ["integer", "string"],
                         "description": "The ID of the ticket to comment on"
                     },
                     "comment": {
@@ -269,7 +269,7 @@ async def handle_list_tools() -> list[types.Tool]:
                     "query": {"type": "string", "description": "Zendesk search query, e.g. 'type:ticket status:open assignee:me'"},
                     "sort_by": {"type": "string", "description": "Field to sort by (created_at, updated_at, priority, status)", "default": "created_at"},
                     "sort_order": {"type": "string", "description": "asc or desc", "default": "asc"},
-                    "per_page": {"type": "integer", "description": "Results per page (max 100)", "default": 10}
+                    "per_page": {"type": ["integer", "string"], "description": "Results per page (max 100)", "default": 10}
                 },
                 "required": ["query"]
             }
@@ -280,7 +280,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "organization_id": {"type": "integer", "description": "The ID of the organization to retrieve"}
+                    "organization_id": {"type": ["integer", "string"], "description": "The ID of the organization to retrieve"}
                 },
                 "required": ["organization_id"]
             }
@@ -302,7 +302,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "group_id": {"type": "integer", "description": "The ID of the group"}
+                    "group_id": {"type": ["integer", "string"], "description": "The ID of the group"}
                 },
                 "required": ["group_id"]
             }
@@ -332,7 +332,7 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "ticket_id": {
-                        "type": "integer",
+                        "type": ["integer", "string"],
                         "description": "The Zendesk ticket ID to look up linked Jira issues for"
                     }
                 },
@@ -369,7 +369,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "macro_id": {"type": "integer", "description": "The ID of the macro to preview (obtain via list_macros)"},
+                    "macro_id": {"type": ["integer", "string"], "description": "The ID of the macro to preview (obtain via list_macros)"},
                 },
                 "required": ["macro_id"]
             }
@@ -380,8 +380,8 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "ticket_id": {"type": "integer", "description": "The ticket to apply the macro to"},
-                    "macro_id": {"type": "integer", "description": "The ID of the macro to apply (obtain via list_macros)"},
+                    "ticket_id": {"type": ["integer", "string"], "description": "The ticket to apply the macro to"},
+                    "macro_id": {"type": ["integer", "string"], "description": "The ID of the macro to apply (obtain via list_macros)"},
                 },
                 "required": ["ticket_id", "macro_id"]
             }
@@ -397,7 +397,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "view_id": {"type": "integer", "description": "The ID of the view (obtain via list_views)"},
+                    "view_id": {"type": ["integer", "string"], "description": "The ID of the view (obtain via list_views)"},
                 },
                 "required": ["view_id"]
             }
@@ -408,7 +408,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "view_id": {"type": "integer", "description": "The ID of the view (obtain via list_views)"},
+                    "view_id": {"type": ["integer", "string"], "description": "The ID of the view (obtain via list_views)"},
                 },
                 "required": ["view_id"]
             }
@@ -419,7 +419,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "ticket_id": {"type": "integer", "description": "The ID of the ticket"},
+                    "ticket_id": {"type": ["integer", "string"], "description": "The ID of the ticket"},
                     "tag": {"type": "string", "description": "The tag to add"},
                 },
                 "required": ["ticket_id", "tag"]
@@ -431,7 +431,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "ticket_id": {"type": "integer", "description": "The ID of the ticket"},
+                    "ticket_id": {"type": ["integer", "string"], "description": "The ID of the ticket"},
                     "tag": {"type": "string", "description": "The tag to remove"},
                 },
                 "required": ["ticket_id", "tag"]
@@ -443,7 +443,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "ticket_id": {"type": "integer", "description": "The Zendesk ticket ID"},
+                    "ticket_id": {"type": ["integer", "string"], "description": "The Zendesk ticket ID"},
                     "issue_key": {"type": "string", "description": "The Jira issue key, e.g. ENG-123"},
                 },
                 "required": ["ticket_id", "issue_key"]
@@ -455,7 +455,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "link_id": {"type": "integer", "description": "The ID of the Jira link to delete"},
+                    "link_id": {"type": ["integer", "string"], "description": "The ID of the Jira link to delete"},
                 },
                 "required": ["link_id"]
             }
@@ -467,10 +467,10 @@ async def handle_list_tools() -> list[types.Tool]:
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Search text"},
-                    "limit": {"type": "integer", "description": "Max results (default 10, max 25)"},
+                    "limit": {"type": ["integer", "string"], "description": "Max results (default 10, max 25)"},
                     "label_names": {"type": "array", "items": {"type": "string"}, "description": "Filter to articles with any of these labels"},
-                    "section_id": {"type": "integer", "description": "Restrict to a specific section"},
-                    "category_id": {"type": "integer", "description": "Restrict to a specific category"},
+                    "section_id": {"type": ["integer", "string"], "description": "Restrict to a specific section"},
+                    "category_id": {"type": ["integer", "string"], "description": "Restrict to a specific category"},
                 },
                 "required": ["query"]
             }
@@ -481,7 +481,7 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "article_id": {"type": "integer", "description": "The article ID"},
+                    "article_id": {"type": ["integer", "string"], "description": "The article ID"},
                 },
                 "required": ["article_id"]
             }
@@ -497,18 +497,18 @@ async def handle_list_tools() -> list[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "ticket_id": {"type": "integer", "description": "The ID of the ticket to update"},
+                    "ticket_id": {"type": ["integer", "string"], "description": "The ID of the ticket to update"},
                     "subject": {"type": "string"},
                     "status": {"type": "string", "description": "new, open, pending, on-hold, solved, closed"},
                     "priority": {"type": "string", "description": "low, normal, high, urgent"},
                     "type": {"type": "string"},
-                    "assignee_id": {"type": ["integer", "null"], "description": "Assignee ID or null to unassign"},
-                    "requester_id": {"type": "integer"},
+                    "assignee_id": {"type": ["integer", "string", "null"], "description": "Assignee ID or null to unassign"},
+                    "requester_id": {"type": ["integer", "string"]},
                     "tags": {"type": "array", "items": {"type": "string"}},
                     "custom_fields": {"type": "array", "items": {"type": "object"}},
                     "due_at": {"type": "string", "description": "ISO8601 datetime"},
-                    "custom_status_id": {"type": "integer", "description": "Custom ticket status ID (e.g. Feature Request Created, On-Hold/Engineering)"},
-                    "group_id": {"type": "integer", "description": "Zendesk group ID to assign the ticket to"}
+                    "custom_status_id": {"type": ["integer", "string"], "description": "Custom ticket status ID (e.g. Feature Request Created, On-Hold/Engineering)"},
+                    "group_id": {"type": ["integer", "string"], "description": "Zendesk group ID to assign the ticket to"}
                 },
                 "required": ["ticket_id"]
             }
@@ -526,7 +526,7 @@ async def handle_call_tool(
         if name == "get_ticket":
             if not arguments:
                 raise ValueError("Missing arguments")
-            ticket = zendesk_client.get_ticket(arguments["ticket_id"])
+            ticket = zendesk_client.get_ticket(int(arguments["ticket_id"]))
             return [types.TextContent(
                 type="text",
                 text=json.dumps(ticket)
@@ -571,7 +571,7 @@ async def handle_call_tool(
             if not arguments:
                 raise ValueError("Missing arguments")
             comments = zendesk_client.get_ticket_comments(
-                arguments["ticket_id"])
+                int(arguments["ticket_id"]))
             return [types.TextContent(
                 type="text",
                 text=json.dumps(comments)
@@ -582,7 +582,7 @@ async def handle_call_tool(
                 raise ValueError("Missing arguments")
             public = arguments.get("public", True)
             result = zendesk_client.post_comment(
-                ticket_id=arguments["ticket_id"],
+                ticket_id=int(arguments["ticket_id"]),
                 comment=arguments["comment"],
                 public=public
             )
@@ -622,7 +622,7 @@ async def handle_call_tool(
         elif name == "get_organization":
             if not arguments:
                 raise ValueError("Missing arguments")
-            org = zendesk_client.get_organization(arguments["organization_id"])
+            org = zendesk_client.get_organization(int(arguments["organization_id"]))
             return [types.TextContent(type="text", text=json.dumps(org, indent=2))]
 
         elif name == "search_users":
@@ -634,7 +634,7 @@ async def handle_call_tool(
         elif name == "get_group_users":
             if not arguments:
                 raise ValueError("Missing arguments")
-            users = zendesk_client.get_group_users(arguments["group_id"])
+            users = zendesk_client.get_group_users(int(arguments["group_id"]))
             return [types.TextContent(type="text", text=json.dumps(users, indent=2))]
 
         elif name == "get_groups":

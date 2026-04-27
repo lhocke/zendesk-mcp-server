@@ -9,6 +9,7 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 ## Bugs
 
 - [x] `get_ticket` / `create_ticket` / `update_ticket` / `get_view_tickets` — custom_fields serialization threw `ProxyDict` attribute error; Zenpy returns dict-like objects, not attribute-accessible ones. Fixed with `_serialize_custom_fields()` helper. (b3bbb12)
+- [x] `create_ticket_comment` / `update_ticket` — MCP schema enforces `integer` type on `ticket_id` but rejects valid numeric values with `'NNNNN' is not of type 'integer'`; curl fallback required. Fixed by widening all integer ID schemas to `["integer", "string"]` and adding `int()` coercion in handlers missing it. (next commit)
 
 ---
 
