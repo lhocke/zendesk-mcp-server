@@ -98,20 +98,29 @@ HTTP transport enables auto-reconnect in clients that support it — if the serv
 uv run uvicorn zendesk_mcp_server.server:app --reload --reload-dir src/zendesk_mcp_server
 ```
 
-> **Claude Code tip:** add a `SessionStart` hook to `~/.claude/settings.json` to auto-start the server when Claude Code opens:
-> ```json
-> {
->   "hooks": {
->     "SessionStart": [{
->       "hooks": [{
->         "type": "command",
->         "command": "nc -z 127.0.0.1 8000 2>/dev/null || ZENDESK_MCP_TRANSPORT=http uv --directory ~/.claude/mcp-servers/zendesk-mcp-server run zendesk &",
->         "async": true
->       }]
->     }]
->   }
-> }
-> ```
+### Lifecycle: starting the server automatically
+
+`scripts/ensure-zendesk-mcp.sh` is an idempotent script that starts the HTTP server if it isn't already running. It checks `127.0.0.1:$ZENDESK_MCP_PORT`, starts the server in the background if the port is closed, and polls for up to 10 seconds before reporting failure.
+
+**Claude Code:** add a `SessionStart` hook to `~/.claude/settings.json` to run it automatically when a session opens:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{
+      "hooks": [{
+        "type": "command",
+        "command": "/path/to/zendesk-mcp-server/scripts/ensure-zendesk-mcp.sh",
+        "async": true
+      }]
+    }]
+  }
+}
+```
+
+Replace `/path/to/zendesk-mcp-server` with your actual checkout path.
+
+**Mid-session recovery:** if Zendesk tool calls start failing mid-session, copy `skills/zendesk-recovery/SKILL.md` to `~/.claude/skills/zendesk-recovery/SKILL.md` and invoke `/zendesk-recovery`. The skill runs the lifecycle script and tells you whether to retry or run `/mcp reconnect zendesk`.
 
 ### Docker
 
