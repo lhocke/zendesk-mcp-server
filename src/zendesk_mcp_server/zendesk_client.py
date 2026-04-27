@@ -38,6 +38,17 @@ def _make_snippet(html: str, max_chars: int = 200) -> str:
     return (truncated[:boundary] if boundary > 0 else truncated) + '...'
 
 
+def _serialize_custom_fields(fields) -> list:
+    """Normalize Zenpy custom_fields — handles both ProxyDict and attribute-based objects."""
+    result = []
+    for f in (fields or []):
+        if hasattr(f, 'get'):
+            result.append({'id': f.get('id'), 'value': f.get('value')})
+        else:
+            result.append({'id': getattr(f, 'id', None), 'value': getattr(f, 'value', None)})
+    return result
+
+
 class ZendeskClient:
     """Zendesk API client supporting two auth modes (API token and OAuth).
 
@@ -112,7 +123,7 @@ class ZendeskClient:
                 'assignee_id': ticket.assignee_id,
                 'organization_id': ticket.organization_id,
                 'tags': list(getattr(ticket, 'tags', []) or []),
-                'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(ticket, 'custom_fields', None) or [])],
+                'custom_fields': _serialize_custom_fields(getattr(ticket, 'custom_fields', None)),
             }
         except Exception as e:
             raise Exception(f"Failed to get ticket {ticket_id}: {str(e)}")
@@ -477,7 +488,7 @@ class ZendeskClient:
                 'assignee_id': getattr(created, 'assignee_id', assignee_id),
                 'organization_id': getattr(created, 'organization_id', None),
                 'tags': list(getattr(created, 'tags', tags or []) or []),
-                'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(created, 'custom_fields', None) or [])],
+                'custom_fields': _serialize_custom_fields(getattr(created, 'custom_fields', None)),
             }
         except Exception as e:
             raise Exception(f"Failed to create ticket: {str(e)}")
@@ -813,7 +824,7 @@ class ZendeskClient:
                     'assignee_id': t.assignee_id,
                     'created_at': str(t.created_at),
                     'updated_at': str(t.updated_at),
-                    'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(t, 'custom_fields', None) or [])],
+                    'custom_fields': _serialize_custom_fields(getattr(t, 'custom_fields', None)),
                 }
                 for t in self.client.views.tickets(view_id)
             ]
@@ -905,7 +916,7 @@ class ZendeskClient:
                 'assignee_id': refreshed.assignee_id,
                 'organization_id': refreshed.organization_id,
                 'tags': list(getattr(refreshed, 'tags', []) or []),
-                'custom_fields': [{'id': f.id, 'value': f.value} for f in (getattr(refreshed, 'custom_fields', None) or [])],
+                'custom_fields': _serialize_custom_fields(getattr(refreshed, 'custom_fields', None)),
             }
         except Exception as e:
             raise Exception(f"Failed to update ticket {ticket_id}: {str(e)}")
