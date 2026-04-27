@@ -237,15 +237,17 @@ class ZendeskClient:
             raise Exception(f"Failed to fetch attachment from {content_url}: {str(e)}")
 
     # NOT decorated with @retry_on_401 — a retry would post a duplicate comment.
-    def post_comment(self, ticket_id: int, comment: str, public: bool = True) -> str:
+    def post_comment(self, ticket_id: int, comment: str, public: bool = True, uploads: List[str] | None = None) -> str:
         """
         Post a comment to an existing ticket.
+        uploads: list of upload tokens from POST /api/v2/uploads.json
         """
         try:
             ticket = self.client.tickets(id=ticket_id)
             ticket.comment = Comment(
                 html_body=comment,
-                public=public
+                public=public,
+                uploads=uploads or [],
             )
             self.client.tickets.update(ticket)
             return comment

@@ -15,6 +15,10 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 
 ## Field gaps (from audit — see specs/field-gaps.md for full detail)
 
+### P1 — Missing tools
+
+- [x] `create_ticket_comment` — no `uploads` parameter; cannot attach files to comments. Fixed by adding `uploads` (array of token strings) to schema, `post_comment()`, and handler. Tokens still obtained separately via `POST /api/v2/uploads.json`. (next commit)
+
 ### P1
 
 - [ ] `list_ticket_fields` — `options` array missing for `select`/`multiselect`/`tagger` field types; callers can't enumerate valid values

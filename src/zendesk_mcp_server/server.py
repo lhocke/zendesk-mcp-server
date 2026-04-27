@@ -241,6 +241,11 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "boolean",
                         "description": "Whether the comment should be public",
                         "default": True
+                    },
+                    "uploads": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Upload tokens from POST /api/v2/uploads.json to attach files to the comment"
                     }
                 },
                 "required": ["ticket_id", "comment"]
@@ -584,7 +589,8 @@ async def handle_call_tool(
             result = zendesk_client.post_comment(
                 ticket_id=int(arguments["ticket_id"]),
                 comment=arguments["comment"],
-                public=public
+                public=public,
+                uploads=arguments.get("uploads"),
             )
             return [types.TextContent(
                 type="text",
