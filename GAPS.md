@@ -6,7 +6,6 @@ Fork: `github.com/lhocke/zendesk-mcp-server`. Dev repo at `~/zendesk-mcp-server`
 
 | Tool | Value | Notes |
 |------|-------|-------|
-| **Knowledge base search** | `zendesk://knowledge-base` currently dumps all Help Center content in one shot — useful for ticket analysis skills but blunt; a `search_articles` tool or `get_article` by ID would give skills targeted retrieval without flooding context | zenpy: `client.help_center.articles.search(query=...)` |
 | **`list_triggers`** | Exposes event-driven rules (conditions + actions) as a structured spec for skill authoring | Same conditions/actions shape as macros; zenpy: `client.triggers` |
 | **`list_automations`** | Exposes time-based rules (conditions + actions) for the same purpose | zenpy: `client.automations` |
 
@@ -35,3 +34,4 @@ Fork: `github.com/lhocke/zendesk-mcp-server`. Dev repo at `~/zendesk-mcp-server`
 | **Add tag non-destructively** | `add_tag` and `remove_tag` tools added (fetch-merge-write internally) | Done |
 | **Create Jira link** | `create_jira_link` tool added | Done |
 | **Delete Jira link** | `delete_jira_link` tool added | Done |
+| **Knowledge base search** | `search_articles`, `get_article`, `list_sections` tools added | Done |
