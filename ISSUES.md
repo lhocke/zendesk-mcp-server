@@ -18,7 +18,8 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 
 ### P1 — Missing tools
 
-- [x] `create_ticket_comment` — no `uploads` parameter; cannot attach files to comments. Fixed by adding `uploads` (array of token strings) to schema, `post_comment()`, and handler. Tokens still obtained separately via `POST /api/v2/uploads.json`. (next commit)
+- [x] `create_ticket_comment` — no `uploads` parameter; cannot attach files to comments. Fixed by adding `uploads` (array of token strings) to schema, `post_comment()`, and handler. (32efa7f)
+- [x] `upload_file` — no native MCP tool to obtain upload tokens; agents had to fall back to curl for `POST /uploads.json`. Fixed by adding `upload_file` tool that accepts `filename` + `content_base64` and returns the token, completing the in-band attach flow. (next commit)
 
 ### P1
 

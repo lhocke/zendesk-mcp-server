@@ -224,6 +224,19 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="upload_file",
+            description="Upload a file to Zendesk and return an upload token. Pass the token to create_ticket_comment via its uploads parameter to attach the file to a comment.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "The filename to register with Zendesk (e.g. 'data.csv')"},
+                    "content_base64": {"type": "string", "description": "Base64-encoded file content"},
+                    "content_type": {"type": "string", "description": "MIME type (e.g. 'text/csv', 'application/pdf'). Defaults to 'application/octet-stream'."},
+                },
+                "required": ["filename", "content_base64"]
+            }
+        ),
+        types.Tool(
             name="create_ticket_comment",
             description="Create a new comment on an existing Zendesk ticket",
             inputSchema={
@@ -582,6 +595,16 @@ async def handle_call_tool(
                 type="text",
                 text=json.dumps(comments)
             )]
+
+        elif name == "upload_file":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            result = zendesk_client.upload_file(
+                filename=str(arguments["filename"]),
+                content_base64=str(arguments["content_base64"]),
+                content_type=str(arguments.get("content_type") or "application/octet-stream"),
+            )
+            return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
         elif name == "create_ticket_comment":
             if not arguments:

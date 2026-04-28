@@ -236,6 +236,36 @@ class ZendeskClient:
         except Exception as e:
             raise Exception(f"Failed to fetch attachment from {content_url}: {str(e)}")
 
+    @retry_on_401
+    def upload_file(self, filename: str, content_base64: str, content_type: str = 'application/octet-stream') -> Dict[str, Any]:
+        """
+        Upload a file to Zendesk and return the upload token, which can then be passed
+        to create_ticket_comment via the `uploads` parameter to attach it.
+        """
+        try:
+            content = base64.b64decode(content_base64)
+            url = f"{self.base_url}/uploads.json?{urllib.parse.urlencode({'filename': filename})}"
+            req = urllib.request.Request(url, data=content, method='POST')
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', content_type)
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            upload = data.get('upload', {})
+            attachment = upload.get('attachment', {}) or {}
+            return {
+                'token': upload.get('token'),
+                'attachment_id': attachment.get('id'),
+                'file_name': attachment.get('file_name'),
+                'content_type': attachment.get('content_type'),
+                'size': attachment.get('size'),
+                'content_url': attachment.get('content_url'),
+            }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to upload file '{filename}': HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to upload file '{filename}': {str(e)}")
+
     # NOT decorated with @retry_on_401 — a retry would post a duplicate comment.
     def post_comment(self, ticket_id: int, comment: str, public: bool = True, uploads: List[str] | None = None) -> str:
         """
