@@ -450,8 +450,9 @@ async def handle_list_tools() -> list[types.Tool]:
                 "properties": {
                     "ticket_id": {"type": ["integer", "string"], "description": "The Zendesk ticket ID"},
                     "issue_key": {"type": "string", "description": "The Jira issue key, e.g. ENG-123"},
+                    "issue_id": {"type": ["integer", "string"], "description": "The numeric Jira issue ID (required by Zendesk's API — obtain via get_jira_links or Jira)"},
                 },
-                "required": ["ticket_id", "issue_key"]
+                "required": ["ticket_id", "issue_key", "issue_id"]
             }
         ),
         types.Tool(
@@ -714,7 +715,7 @@ async def handle_call_tool(
         elif name == "create_jira_link":
             if not arguments:
                 raise ValueError("Missing arguments")
-            link = zendesk_client.create_jira_link(int(arguments["ticket_id"]), str(arguments["issue_key"]))
+            link = zendesk_client.create_jira_link(int(arguments["ticket_id"]), str(arguments["issue_key"]), str(arguments["issue_id"]))
             return [types.TextContent(type="text", text=json.dumps(link, indent=2))]
 
         elif name == "delete_jira_link":

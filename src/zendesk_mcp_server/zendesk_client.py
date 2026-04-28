@@ -862,17 +862,30 @@ class ZendeskClient:
             raise Exception(f"Failed to remove tag '{tag}' from ticket {ticket_id}: {str(e)}")
 
     # NOT decorated with @retry_on_401 — a retry would create a duplicate Jira link.
-    def create_jira_link(self, ticket_id: int, issue_key: str) -> Dict[str, Any]:
+    def create_jira_link(self, ticket_id: int, issue_key: str, issue_id: str) -> Dict[str, Any]:
+        # Zenpy's Link() never sends issue_id, causing a 422 from the endpoint.
+        # POST directly to /api/services/jira/links instead.
         try:
-            link = self.client.jira_links.create(Link(ticket_id=ticket_id, issue_key=issue_key))
+            base = self.base_url.replace('/api/v2', '')
+            url = f"{base}/api/services/jira/links"
+            payload = json.dumps({'ticket_id': ticket_id, 'issue_key': issue_key, 'issue_id': str(issue_id)}).encode()
+            req = urllib.request.Request(url, data=payload, method='POST')
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            link = data.get('link', data)
             return {
-                'id': link.id,
-                'ticket_id': link.ticket_id,
-                'issue_id': link.issue_id,
-                'issue_key': link.issue_key,
-                'url': link.url,
-                'created_at': str(link.created_at),
+                'id': link.get('id'),
+                'ticket_id': link.get('ticket_id'),
+                'issue_id': link.get('issue_id'),
+                'issue_key': link.get('issue_key'),
+                'url': link.get('url'),
+                'created_at': str(link.get('created_at', '')),
             }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to create Jira link for ticket {ticket_id} / {issue_key}: HTTP {e.code} - {e.reason}. {error_body}")
         except Exception as e:
             raise Exception(f"Failed to create Jira link for ticket {ticket_id} / {issue_key}: {str(e)}")
 
