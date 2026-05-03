@@ -8,6 +8,8 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 
 ## Bugs
 
+- [x] `search_tickets` (and `get_tickets`) — fails with `'<' not supported between instances of 'int' and 'str'`. `per_page` schema allows `["integer", "string"]` so it can arrive as a string; `min(per_page, 100)` then throws a type comparison error. Fixed by coercing to `int` before `min()` in both methods in `zendesk_client.py`.
+
 - [x] `get_ticket` / `create_ticket` / `update_ticket` / `get_view_tickets` — custom_fields serialization threw `ProxyDict` attribute error; Zenpy returns dict-like objects, not attribute-accessible ones. Fixed with `_serialize_custom_fields()` helper. (b3bbb12)
 - [x] `create_ticket_comment` / `update_ticket` — MCP schema enforces `integer` type on `ticket_id` but rejects valid numeric values with `'NNNNN' is not of type 'integer'`; curl fallback required. Fixed by widening all integer ID schemas to `["integer", "string"]` and adding `int()` coercion in handlers missing it. (next commit)
 - [x] `create_jira_link` — always fails with `422 issue_id can't be blank`. Fixed by bypassing Zenpy and POSTing directly to `/api/services/jira/links`; `issue_id` added as a required parameter to schema and method. (next commit)
@@ -18,6 +20,8 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 
 ### P1 — Missing tools
 
+- [ ] `get_user` — no tool to look up a user by ID; `search_users` only accepts name/email, so resolving an `assignee_id` or `requester_id` from ticket data to a display name requires falling back to curl `/api/v2/users/{id}.json`. Add a `get_user(user_id)` tool returning at minimum `id`, `name`, `email`, `role`, `organization_id`.
+
 - [x] `create_ticket_comment` — no `uploads` parameter; cannot attach files to comments. Fixed by adding `uploads` (array of token strings) to schema, `post_comment()`, and handler. (32efa7f)
 - [x] `upload_file` — no native MCP tool to obtain upload tokens; agents had to fall back to curl for `POST /uploads.json`. Fixed by adding `upload_file` tool that accepts `filename` + `content_base64` and returns the token, completing the in-band attach flow. (next commit)
 
@@ -25,7 +29,7 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 
 - [ ] `list_ticket_fields` — `options` array missing for `select`/`multiselect`/`tagger` field types; callers can't enumerate valid values
 - [ ] `search_users` / `get_group_users` — only 3–4 fields returned; missing `organization_id`, `active`, `role` (group_users), `user_fields`
-- [ ] `get_tickets` — missing `organization_id` and `tags` (inconsistent with `get_ticket`)
+- [x] `get_tickets` — missing `organization_id`, `group_id`, and `tags`. Added all three.
 
 ### P2
 

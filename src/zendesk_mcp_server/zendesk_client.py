@@ -300,7 +300,7 @@ class ZendeskClient:
         """
         try:
             # Cap at reasonable limit
-            per_page = min(per_page, 100)
+            per_page = min(int(per_page), 100)
 
             # Build URL with parameters for offset pagination
             params = {
@@ -336,6 +336,9 @@ class ZendeskClient:
                     'updated_at': ticket.get('updated_at'),
                     'requester_id': ticket.get('requester_id'),
                     'assignee_id': ticket.get('assignee_id'),
+                    'organization_id': ticket.get('organization_id'),
+                    'group_id': ticket.get('group_id'),
+                    'tags': ticket.get('tags', []),
                     'custom_fields': ticket.get('custom_fields', []),
                 })
 
@@ -528,7 +531,7 @@ class ZendeskClient:
     @retry_on_401
     def search_tickets(self, query: str, sort_by: str = 'created_at', sort_order: str = 'asc', per_page: int = 10) -> Dict[str, Any]:
         try:
-            per_page = min(per_page, 100)
+            per_page = min(int(per_page), 100)
             params = {'query': query, 'sort_by': sort_by, 'sort_order': sort_order, 'per_page': str(per_page)}
             url = f"{self.base_url}/search.json?{urllib.parse.urlencode(params)}"
             req = urllib.request.Request(url)
@@ -546,6 +549,8 @@ class ZendeskClient:
                     'updated_at': t.get('updated_at'),
                     'assignee_id': t.get('assignee_id'),
                     'organization_id': t.get('organization_id'),
+                    'group_id': t.get('group_id'),
+                    'tags': t.get('tags', []),
                     'custom_fields': t.get('custom_fields', []),
                 }
                 for t in data.get('results', [])
@@ -854,8 +859,12 @@ class ZendeskClient:
                     'status': t.status,
                     'priority': t.priority,
                     'assignee_id': t.assignee_id,
+                    'requester_id': t.requester_id,
+                    'organization_id': t.organization_id,
+                    'group_id': t.group_id,
                     'created_at': str(t.created_at),
                     'updated_at': str(t.updated_at),
+                    'tags': list(getattr(t, 'tags', []) or []),
                     'custom_fields': _serialize_custom_fields(getattr(t, 'custom_fields', None)),
                 }
                 for t in self.client.views.tickets(view_id)
