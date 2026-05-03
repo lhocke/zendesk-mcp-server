@@ -93,12 +93,14 @@ def test_zenpy_session_header_propagates_across_api_helpers():
 
 # Methods that MUST carry @retry_on_401 (24 total per oauth-implementation-plan-lean.md M4)
 _DECORATED_METHODS = [
-    "get_ticket", "get_ticket_comments", "get_ticket_attachment",
+    "get_ticket", "get_ticket_metrics", "get_ticket_comments",
+    "get_ticket_attachment",
     "get_tickets", "get_all_articles", "create_ticket",
-    "search_tickets", "get_organization", "search_users",
+    "search_tickets", "get_organization", "search_users", "get_user",
     "get_group_users", "get_groups", "list_custom_statuses",
     "get_jira_links", "get_zendesk_tickets_for_jira_issue",
-    "list_ticket_fields", "list_macros", "preview_macro",
+    "list_ticket_fields", "list_macros", "list_triggers",
+    "list_automations", "preview_macro",
     "get_view", "list_views", "get_view_tickets",
     "add_tag", "remove_tag", "delete_jira_link", "update_ticket",
 ]

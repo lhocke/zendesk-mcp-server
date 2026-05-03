@@ -49,6 +49,38 @@ def _serialize_custom_fields(fields) -> list:
     return result
 
 
+def _get(obj, key, default=None):
+    """Read `key` from an object that may be a dict/ProxyDict or an attribute-based object."""
+    if obj is None:
+        return default
+    if hasattr(obj, 'get'):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _serialize_rule_actions(actions) -> list:
+    return [
+        {'field': _get(a, 'field'), 'value': _get(a, 'value')}
+        for a in (actions or [])
+    ]
+
+
+def _serialize_rule_conditions(conditions) -> dict:
+    """Triggers/automations expose conditions as {all: [...], any: [...]} where each
+    item has field/operator/value. Macros don't have conditions."""
+    if conditions is None:
+        return {'all': [], 'any': []}
+    def _items(group):
+        return [
+            {'field': _get(c, 'field'), 'operator': _get(c, 'operator'), 'value': _get(c, 'value')}
+            for c in (group or [])
+        ]
+    return {
+        'all': _items(_get(conditions, 'all', [])),
+        'any': _items(_get(conditions, 'any', [])),
+    }
+
+
 class ZendeskClient:
     """Zendesk API client supporting two auth modes (API token and OAuth).
 
@@ -127,6 +159,33 @@ class ZendeskClient:
             }
         except Exception as e:
             raise Exception(f"Failed to get ticket {ticket_id}: {str(e)}")
+
+    @retry_on_401
+    def get_ticket_metrics(self, ticket_id: int) -> Dict[str, Any]:
+        """
+        Return SLA-relevant metrics for a single ticket: reply/resolution/wait
+        times and breach timestamps. Pair with `search_tickets` filters like
+        `sla_breach:true` to find breached tickets first, then fetch detail.
+        """
+        try:
+            m = self.client.tickets.metrics(ticket_id)
+            return {
+                'ticket_id': ticket_id,
+                'reply_time_in_minutes': getattr(m, 'reply_time_in_minutes', None),
+                'first_resolution_time_in_minutes': getattr(m, 'first_resolution_time_in_minutes', None),
+                'full_resolution_time_in_minutes': getattr(m, 'full_resolution_time_in_minutes', None),
+                'requester_wait_time_in_minutes': getattr(m, 'requester_wait_time_in_minutes', None),
+                'agent_wait_time_in_minutes': getattr(m, 'agent_wait_time_in_minutes', None),
+                'on_hold_time_in_minutes': getattr(m, 'on_hold_time_in_minutes', None),
+                'breach_at': str(m.breach_at) if getattr(m, 'breach_at', None) else None,
+                'next_breach_at': str(m.next_breach_at) if getattr(m, 'next_breach_at', None) else None,
+                'group_stations': getattr(m, 'group_stations', None),
+                'assignee_stations': getattr(m, 'assignee_stations', None),
+                'reopens': getattr(m, 'reopens', None),
+                'replies': getattr(m, 'replies', None),
+            }
+        except Exception as e:
+            raise Exception(f"Failed to get metrics for ticket {ticket_id}: {str(e)}")
 
     @retry_on_401
     def get_ticket_comments(self, ticket_id: int) -> List[Dict[str, Any]]:
@@ -593,6 +652,41 @@ class ZendeskClient:
             raise Exception(f"Failed to get organization {organization_id}: {str(e)}")
 
     @retry_on_401
+    def get_user(self, user_id: int) -> Dict[str, Any]:
+        """
+        Look up a Zendesk user by ID. Useful for resolving an `assignee_id` /
+        `requester_id` from ticket data into a name/email/role without
+        falling back to curl.
+        """
+        try:
+            url = f"{self.base_url}/users/{user_id}.json"
+            req = urllib.request.Request(url)
+            req.add_header('Authorization', self.auth_header)
+            req.add_header('Content-Type', 'application/json')
+            with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read().decode())
+            u = data.get('user', {})
+            return {
+                'id': u.get('id'),
+                'name': u.get('name'),
+                'email': u.get('email'),
+                'role': u.get('role'),
+                'organization_id': u.get('organization_id'),
+                'active': u.get('active'),
+                'suspended': u.get('suspended'),
+                'time_zone': u.get('time_zone'),
+                'user_fields': u.get('user_fields', {}),
+                'tags': u.get('tags', []),
+                'created_at': u.get('created_at'),
+                'updated_at': u.get('updated_at'),
+            }
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else "No response body"
+            raise Exception(f"Failed to get user {user_id}: HTTP {e.code} - {e.reason}. {error_body}")
+        except Exception as e:
+            raise Exception(f"Failed to get user {user_id}: {str(e)}")
+
+    @retry_on_401
     def search_users(self, query: str) -> List[Dict[str, Any]]:
         try:
             url = f"{self.base_url}/users/search.json?{urllib.parse.urlencode({'query': query})}"
@@ -755,6 +849,51 @@ class ZendeskClient:
             return result
         except Exception as e:
             raise Exception(f"Failed to list macros: {str(e)}")
+
+    @retry_on_401
+    def list_triggers(self) -> List[Dict[str, Any]]:
+        """
+        List active Zendesk triggers (event-driven rules) with their conditions
+        and actions, for use when authoring skills that reason about how tickets
+        are routed/mutated by automation.
+        """
+        try:
+            result = []
+            for t in self.client.triggers():
+                if not getattr(t, 'active', True):
+                    continue
+                result.append({
+                    'id': t.id,
+                    'title': t.title,
+                    'description': getattr(t, 'description', None),
+                    'category_id': getattr(t, 'category_id', None),
+                    'conditions': _serialize_rule_conditions(getattr(t, 'conditions', None)),
+                    'actions': _serialize_rule_actions(getattr(t, 'actions', [])),
+                })
+            return result
+        except Exception as e:
+            raise Exception(f"Failed to list triggers: {str(e)}")
+
+    @retry_on_401
+    def list_automations(self) -> List[Dict[str, Any]]:
+        """
+        List active Zendesk automations (time-based rules) with their conditions
+        and actions. Same shape as `list_triggers`.
+        """
+        try:
+            result = []
+            for a in self.client.automations():
+                if not getattr(a, 'active', True):
+                    continue
+                result.append({
+                    'id': a.id,
+                    'title': a.title,
+                    'conditions': _serialize_rule_conditions(getattr(a, 'conditions', None)),
+                    'actions': _serialize_rule_actions(getattr(a, 'actions', [])),
+                })
+            return result
+        except Exception as e:
+            raise Exception(f"Failed to list automations: {str(e)}")
 
     @retry_on_401
     def preview_macro(self, macro_id: int) -> Dict[str, Any]:

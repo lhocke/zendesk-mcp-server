@@ -210,6 +210,20 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="get_ticket_metrics",
+            description="Return SLA-relevant metrics for a single ticket: reply/resolution/wait times and breach timestamps. Pair with `search_tickets(query='sla_breach:true ...')` to first locate breached tickets, then call this for per-ticket detail.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": ["integer", "string"],
+                        "description": "The ID of the ticket"
+                    }
+                },
+                "required": ["ticket_id"]
+            }
+        ),
+        types.Tool(
             name="get_ticket_comments",
             description="Retrieve all comments for a Zendesk ticket by its ID",
             inputSchema={
@@ -315,6 +329,17 @@ async def handle_list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
+            name="get_user",
+            description="Look up a Zendesk user by ID. Useful for resolving an assignee_id or requester_id from ticket data into name/email/role/organization without a search.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": ["integer", "string"], "description": "The ID of the user to retrieve"}
+                },
+                "required": ["user_id"]
+            }
+        ),
+        types.Tool(
             name="get_group_users",
             description="List all users in a Zendesk group",
             inputSchema={
@@ -379,6 +404,16 @@ async def handle_list_tools() -> list[types.Tool]:
         types.Tool(
             name="list_macros",
             description="List all active Zendesk macros with their actions, for use with apply_macro",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="list_triggers",
+            description="List active Zendesk triggers (event-driven rules) with their conditions and actions. Use to understand how tickets are auto-routed/mutated when conditions match.",
+            inputSchema={"type": "object", "properties": {}, "required": []}
+        ),
+        types.Tool(
+            name="list_automations",
+            description="List active Zendesk automations (time-based rules) with their conditions and actions. Same shape as list_triggers but fired on a schedule rather than on events.",
             inputSchema={"type": "object", "properties": {}, "required": []}
         ),
         types.Tool(
@@ -586,6 +621,12 @@ async def handle_call_tool(
                 text=json.dumps(tickets, indent=2)
             )]
 
+        elif name == "get_ticket_metrics":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            metrics = zendesk_client.get_ticket_metrics(int(arguments["ticket_id"]))
+            return [types.TextContent(type="text", text=json.dumps(metrics, indent=2))]
+
         elif name == "get_ticket_comments":
             if not arguments:
                 raise ValueError("Missing arguments")
@@ -661,6 +702,12 @@ async def handle_call_tool(
             users = zendesk_client.search_users(arguments["query"])
             return [types.TextContent(type="text", text=json.dumps(users, indent=2))]
 
+        elif name == "get_user":
+            if not arguments:
+                raise ValueError("Missing arguments")
+            user = zendesk_client.get_user(int(arguments["user_id"]))
+            return [types.TextContent(type="text", text=json.dumps(user, indent=2))]
+
         elif name == "get_group_users":
             if not arguments:
                 raise ValueError("Missing arguments")
@@ -694,6 +741,14 @@ async def handle_call_tool(
         elif name == "list_macros":
             macros = zendesk_client.list_macros()
             return [types.TextContent(type="text", text=json.dumps(macros, indent=2))]
+
+        elif name == "list_triggers":
+            triggers = zendesk_client.list_triggers()
+            return [types.TextContent(type="text", text=json.dumps(triggers, indent=2))]
+
+        elif name == "list_automations":
+            automations = zendesk_client.list_automations()
+            return [types.TextContent(type="text", text=json.dumps(automations, indent=2))]
 
         elif name == "preview_macro":
             if not arguments:

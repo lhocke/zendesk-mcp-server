@@ -20,7 +20,7 @@ Format: `- [ ]` open · `- [x]` fixed (include commit)
 
 ### P1 — Missing tools
 
-- [ ] `get_user` — no tool to look up a user by ID; `search_users` only accepts name/email, so resolving an `assignee_id` or `requester_id` from ticket data to a display name requires falling back to curl `/api/v2/users/{id}.json`. Add a `get_user(user_id)` tool returning at minimum `id`, `name`, `email`, `role`, `organization_id`.
+- [x] `get_user` — added. Returns `id`, `name`, `email`, `role`, `organization_id`, `active`, `suspended`, `time_zone`, `user_fields`, `tags`, `created_at`, `updated_at`. (next commit)
 
 - [x] `create_ticket_comment` — no `uploads` parameter; cannot attach files to comments. Fixed by adding `uploads` (array of token strings) to schema, `post_comment()`, and handler. (32efa7f)
 - [x] `upload_file` — no native MCP tool to obtain upload tokens; agents had to fall back to curl for `POST /uploads.json`. Fixed by adding `upload_file` tool that accepts `filename` + `content_base64` and returns the token, completing the in-band attach flow. (next commit)
